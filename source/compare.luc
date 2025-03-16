@@ -1,0 +1,25 @@
+module compare (
+    input z,
+    input v,
+    input n,
+    input alufn[6],
+    output cmp
+) {
+
+    wire inputs[4];
+
+    always {
+        inputs[0] = 0;          // Default case
+        inputs[1] = z;          // When alufn[2:1] is 01
+        inputs[2] = n ^ v;      // When alufn[2:1] is 10
+        inputs[3] = z | (n ^ v); // When alufn[2:1] is 11
+    }
+
+    mux_4 my_mux (
+        .s0(alufn[1]),
+        .s1(alufn[2]),
+        .in(inputs),
+        .out(cmp)
+    );
+
+}
