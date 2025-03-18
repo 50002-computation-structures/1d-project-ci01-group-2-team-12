@@ -1,18 +1,32 @@
 // A ripple-carry-adder combinational logic unit
 module rca #(
-    SIZE ~ 32 : SIZE > 1
+    SIZE = 32: SIZE > 0
 )(
     input a[SIZE],
     input b[SIZE],
     input cin,
     output cout,
-    output s[SIZE],
-) {
-    
+    output s[SIZE]
+  ) {
+    // instantiate fa module
+    fa fa[SIZE];
+
     always {
-        // implement ripple-carry-adder logic here 
-        cout = 0
-        s = 0 
-        
+        // send values into fa inputs
+        fa.a = a
+        fa.b = b
+        fa.cin = 0
+    
+        repeat(i, SIZE){
+            if (i == 0){
+                fa.cin[0] = cin
+            }
+            else{
+                fa.cin[i] = fa.cout[i-1]
+            }
+        }
+        // output is the sum of fa
+        s = fa.s;
+        cout = fa.cout
     }
 }

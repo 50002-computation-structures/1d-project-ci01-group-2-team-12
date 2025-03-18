@@ -1,20 +1,75 @@
-module alu (
+module alu #(
+    SIZE = 32 : SIZE > 1
+)(
     input a[32],
     input b[32],
-    input alufn[6],
+    input alufn_signal[6],
     output out[32],
     output z,
     output v,
-    output n
+    output n,
+    output alu_output[32]
 ) {
-    
-    
-    
+    // instantiate adder module
+    adder adder(#SIZE(SIZE))
+    // instantiate compare module
+    compare compare(.z(adder.z),.v(adder.v),.n(adder.n),.alufn(alufn_signal))
+    // instantiate boolean module
+    boolean boolean(.a(a),.b(b),.alufn_signal(alufn_signal))
+    // instantiate shifter module
+    shifter shifter(.a(a),.b(b),.alufn(alufn_signal))
+    // instantiate multiplier module
+    multiplier multiplier(.a(a),.b(b))
+    // instantiate divider module
+    divider divider(.a(a),.b(b))
     always {
-        // implement alu logic here
+        // initialise all inputs as 0
         out = 0 
+        alu_output = 0
         z = 0
         v = 0 
-        n = 0    
+        n = 0
+        // send data from inputs a, b and alufn_signal to adder inputs a, b and alufn_signal
+        adder.a = a;
+        adder.b = b;
+        adder.alufn_signal = alufn_signal;
+        // store outputs z, v and n from adder into inputs z, v and n
+        z = adder.z;
+        v = adder.v;
+        n = adder.n;
+      // determine what the alu should perform based on alufn_signal
+      case (alufn_signal){
+          // alufn input for addition by adder function
+          b000000: out = adder.out;
+          // alufn input for subtraction by adder function
+          b000001: out = adder.out;
+          // alufn input for multiplication by multiplier function
+          b000010: out = multiplier.mul;
+          // alufn input for a AND b bitwise
+          b011000: out = boolean.bool;
+          // alufn input for a OR b bitwise
+          b011110: out = boolean.bool;
+          // alufn input for a XOR b bitwise
+          b010110: out = boolean.bool;
+          // alufn input for a regardless b bitwise
+          b011010: out = boolean.bool;
+          // alufn input for left shift
+          b100000: out = shifter.shift;
+          // alufn input for right shift
+          b100001: out = shifter.shift;
+          // alufn input for right arithmetic shift
+          b100011: out = shifter.shift;
+          // alufn input for comparing a=b by compare function
+          b110011: out = c{31x{b0}, compare.cmp};
+          // alufn input for comparing a<b by compare function
+          b110101: out = c{31x{b0}, compare.cmp};
+          // alufn input for comparing a<=b by compare function
+          b110111: out = c{31x{b0}, compare.cmp};
+          // alufn input for dividing a by b
+          b000011: out = divider.d
+          default:
+            out = 0;
+      }
+      
     }
 }

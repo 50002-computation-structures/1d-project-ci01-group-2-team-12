@@ -1,40 +1,58 @@
-module alchitry_top (
+module alchitry_top #(
+    SIZE = 32 : SIZE > 1
+)(
     input clk,              // 100MHz clock
     input rst_n,            // reset button (active low)
     output led[8],          // 8 user controllable LEDs
-    input usb_rx,            // USB->Serial input
-    output usb_tx,           // USB->Serial output
-    output io_led[3][8],     // LEDs on IO Shield
-    output io_segment[8],        // 7-segment LEDs on IO Shield
-    output io_select[4],        // Digit select on IO Shield
-    input io_button[5],      // 5 buttons on IO Shield
-    input io_dip[3][8]       // DIP switches on IO Shield
+    input usb_rx,           // USB->Serial input
+    output usb_tx,          // USB->Serial output
+    output io_led[3][8],    // LEDs on IO Shield
+    output io_segment[8],   // 7-segment LEDs on IO Shield
+    output io_select[4],    // Digit select on IO Shield
+    input io_button[5],     // 5 buttons on IO Shield
+    input io_dip[3][8]      // DIP switches on IO Shield
 ) {
-    
-    sig rst                 // reset signal
-    
+    sig rst
+    sig manual_mode
+           
     .clk(clk) {
-        // The reset conditioner is used to synchronize the reset signal to the FPGA
-        // clock. This ensures the entire FPGA comes out of reset at the same time.
         reset_conditioner reset_cond
     }
-    const CLK_FREQ = $is_sim() ? 1000 : 10000000 // put 1000 for sim, 10000000 otherwise in hardware
-    
-    alu_manual_tester alu_manual(.clk(clk), .rst(rst), .io_button(io_button), .io_dip(io_dip), #CLK_FREQ(CLK_FREQ)) 
+    // put 1000 for sim, 10000000 otherwise in hardware
+    const CLK_FREQ = $is_sim() ? 1000 : 10000000 
+    // instantiation of alu_manual_tester module
+    alu_manual_tester alu_manual(
+        .clk(clk),
+        .rst(rst), 
+        .io_button(io_button), 
+        .io_dip(io_dip), 
+        #CLK_FREQ(CLK_FREQ))
+    // instantiation of alu_auto_tester module
+    alu_auto_tester alu_auto(
+        .clk(clk),
+        .rst(rst), 
+        .io_button(io_button), 
+        .io_dip(io_dip), 
+        #CLK_FREQ(CLK_FREQ))
     
     always {
-        reset_cond.in = ~rst_n  // input raw inverted reset signal
-        rst = reset_cond.out    // conditioned reset
+        // input raw inverted reset signal
+        reset_cond.in = ~rst_n 
+        // conditioned reset 
+        rst = reset_cond.out    
+        // turn LEDs off
+        led = 8h00         
+        // turn io_led off
+        io_led = 3x{{8h00}}
+        // loop serial port
+        usb_tx = usb_rx
         
-        led = 8h00             // turn LEDs off
-        
-        usb_tx = usb_rx          // loop serial port
-        
-
-        // to test ALU 
-        io_segment = alu_manual.io_segment
-        io_select = alu_manual.io_select         
-        io_led = alu_manual.io_led
- 
+        // link io_segment, io_select, io_led, led to either manual tester or auto tester depending on the io_dip[2][6]
+        // manual tester if io_dip[2][6] is down, and auto tester if up
+        manual_mode = ~io_dip[2][6]
+        io_segment = manual_mode ? alu_manual.io_segment : alu_auto.io_segment
+        io_select = manual_mode ? alu_manual.io_select : alu_auto.io_select
+        io_led = manual_mode ? alu_manual.io_led : alu_auto.io_led
+        led =  manual_mode ? alu_manual.led : alu_auto.led
     }
 }

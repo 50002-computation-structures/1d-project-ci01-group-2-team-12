@@ -1,0 +1,149 @@
+module alu_auto_tester#(
+    CLK_FREQ ~ 1000 : CLK_FREQ > 0) 
+(
+    input clk,
+    input rst, 
+    input io_button[5],
+    input io_dip[3][8],
+    output led[8],
+    output io_led[3][8],
+    output io_segment[8],
+    output io_select[4]
+) {
+    const SEVEN_SEG_DIV = $is_sim() ? 3 : 16
+    const TEST_DELAY = CLK_FREQ * 1; // 1 second delay
+    .clk(clk) {
+        edge_detector io_button_edge[5](#RISE(5x{{1}}), #FALL(5x{{0}}))
+        // 1 second delay
+        button_conditioner io_button_cond[5](#CLK_FREQ(5x{{$resize(CLK_FREQ, $width(10000000))}})) 
+        .rst(rst) {
+            multi_seven_seg seg(#DIV(SEVEN_SEG_DIV)) 
+            dff delay_counter[$clog2(TEST_DELAY)];     
+        }
+    }
+    // instantiate alu module
+    alu alu;
+    // instantiate rom module
+    rom rom;
+    // number of test cases to loop the FSM auto tester
+    const NUM_TEST_CASES = 28;
+    // for error checking
+    sig modified_alu_out[32]
+    sig z_v_n[3]
+    // states for auto tester FSM
+    enum States{
+        IDLE,
+        RUN, 
+        CHECK
+    }
+    // Store states in DFFs
+    dff tester_state[3](#INIT(States.IDLE),.clk(clk));
+    dff a_temp[32](.clk(clk), .rst(rst));
+    dff b_temp[32](.clk(clk), .rst(rst));
+    dff alufn[6](.clk(clk), .rst(rst));
+    dff test_id[5](.clk(clk), .rst(rst));
+    bin_to_dec decimal_renderer(#DIGITS(4), #LEADING_ZEROS(1))
+    
+    always {        
+        led = 8h00
+        // condition the io buttons, then take rising edges only
+        io_button_cond.in = io_button
+        io_button_edge.in = io_button_cond.out
+        // Connect inputs to ALU 
+        alu.a = a_temp.q; 
+        alu.b = b_temp.q;
+        alu.alufn_signal = alufn.q 
+        rom.test_id = test_id.q;
+        // Reset LEDs
+        io_led = 3x{ {8h00} }        
+        // Update the state on each cycle
+        tester_state.d = tester_state.q;
+        delay_counter.d = delay_counter.q + 1;
+        test_id.d = test_id.q;
+        // Default value
+        modified_alu_out = alu.out;
+        z_v_n = c{alu.z, alu.v, alu.n}
+        // FSM for auto tester
+        case (tester_state.q) {
+            // Default state where it does nothing. Moves to load state when button is pressed.
+            States.IDLE: 
+                // auto tester start with press of middle button
+                if (io_button_edge.out[1]) {
+                    tester_state.d = States.RUN;
+                    test_id.d = 0;
+                    delay_counter.d = 0;
+                } 
+            States.RUN: 
+                // Load test case from ROM
+                a_temp.d = rom.a;
+                b_temp.d = rom.b;
+                alufn.d = rom.alufn;
+                // Stay in RUN state for test_delay
+                if (delay_counter.q == TEST_DELAY - 1) {
+                    tester_state.d = States.CHECK;
+                    delay_counter.d = 0;
+                } else {
+                    delay_counter.d = delay_counter.q + 1;
+                }
+                
+            States.CHECK:
+                // Modify ALU output LSB when io_dip[2][7] is high (error simulation)
+                modified_alu_out = alu.out ^ c{31b0, io_dip[2][7]}  // Invert LSB
+                // Compare ALU output with expected value
+                if (modified_alu_out[31:0] == rom.expected) {
+                    io_led[0] = 8b11111111;  // Correct is on the right side
+                } else {
+                    io_led[2] =  8b11111111;  // Incorrect is on the left side
+                }
+                z_v_n = c{alu.z, alu.v, alu.n}
+                if(rom.alufn == 6b000000 || rom.alufn == 6b000001){
+                    if (z_v_n == c{rom.z, rom.v, rom.n}) {
+                        io_led[1][2:0] = 3b111
+                    } else {
+                        io_led[1][7:5] = 3b111
+                    }
+                }
+                // Handle delay counter and transitions
+                if (delay_counter.q < TEST_DELAY - 1) {
+                    delay_counter.d = delay_counter.q + 1;
+                } else {
+                    // After delay completes, check result
+                    if (modified_alu_out == rom.expected) {
+                        // Correct: Proceed to next test
+                        test_id.d = test_id.q + 1;
+                        if (test_id.q + 1 < NUM_TEST_CASES) {
+                            tester_state.d = States.RUN;
+                        } else {
+                            tester_state.d = States.IDLE;
+                        }
+                        delay_counter.d = 0;  // Reset for next RUN
+                    } else {
+                        // Error: Freeze delay_counter and wait for button press
+                        delay_counter.d = TEST_DELAY - 1;  // Stop counter
+                    }
+                }
+
+                // Check for button press to resume after error (any time after delay completes)
+                if (delay_counter.q == TEST_DELAY - 1 && modified_alu_out != rom.expected) {
+                    // press middle button to proceed to next test case
+                    if (io_button_edge.out[1]) {
+                        test_id.d = test_id.q + 1;
+                        if (test_id.q + 1 < NUM_TEST_CASES) {
+                            tester_state.d = States.RUN;
+                            // Reset counter for RUN
+                            delay_counter.d = 0;  
+                        } else {
+                            tester_state.d = States.IDLE;
+                        }
+                    }
+                }
+        }
+
+        // 7-segment display shows test ID
+        decimal_renderer.value = ((test_id.q + 1) * 100) + (tester_state.q);
+        //decimal_renderer.value = ((test_id.q + 1) * 100) + (alufn.q);
+        seg.values = decimal_renderer.digits
+        io_segment = ~seg.seg
+        io_select = ~seg.sel
+    }
+}

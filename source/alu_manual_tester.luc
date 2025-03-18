@@ -1,25 +1,157 @@
 module alu_manual_tester#(
     CLK_FREQ ~ 1000 : CLK_FREQ > 0) 
 (
-    input clk,  // clock
-    input rst,  // reset
+    input clk,
+    input rst, 
+    output led[8],
     input io_button[5],
     input io_dip[3][8],
     output io_led[3][8],
     output io_segment[8],
     output io_select[4]
 ) {
-    
+    // instantiation of alu module
     alu alu
-    
+    // states for storing a and b
+    enum States {
+        IDLE,
+        START,
+        STOREA1,
+        STOREA2,
+        STOREB1,
+        STOREB2,
+        COMPUTE
+    }
+    sig rst_n
+    const SEVEN_SEG_DIV = $is_sim() ? 3 : 16
+    .clk(clk) {
+        reset_conditioner reset_cond
+        // instantiate 5 edge detectors, one for each button 
+        edge_detector io_button_edge[5](#RISE(5x{{1}}), #FALL(5x{{0}}))
+        // instantiate 5 conditioners, one for each button
+        button_conditioner io_button_cond[5](#CLK_FREQ(5x{{$resize(CLK_FREQ, 32)}}))  
+        .rst(rst) {
+            // instantiation of multi_seven_seg module for multiple seven segment displays
+            multi_seven_seg seg(#DIV(SEVEN_SEG_DIV))
+            // dff for FSM
+            dff states[$width(States)](#INIT(States.IDLE))
+            // dff for intermediates and output for FSM
+            dff a1[16]
+            dff a2[16]
+            dff b2[16]
+            dff b3[16]
+            dff a[32]
+            dff b[32]
+            dff out[32]
+            dff a_reg[32]
+            dff b_reg[32]
+            dff alufn_reg[6]
+            dff z_v_n[3]
+        }
+    }
+    bin_to_dec decimal_renderer(#DIGITS(4), #LEADING_ZEROS(1))
     always {
-        // implement alu tester logic here
-        alu.a = 0
-        alu.b = 0
-        alu.alufn = 0
+        // input raw inverted reset signal
+        reset_cond.in = ~rst     
+        // conditioned reset
+        rst_n = reset_cond.out
+        // condition the io buttons, then take rising edges only
+        io_button_cond.in = io_button
+        io_button_edge.in = io_button_cond.out
+        // set initial values for outputs
+        led = 8h00
         io_led = 3x{{8h0}}
         io_segment = 0
         io_select = 4hF
-        
+        alu.alufn_signal = 6b000000
+        alu.a = 0
+        alu.b = 0
+        // FSM for storing of a and b
+        states.d = states.q
+        case(states.q){
+            // default state
+            States.IDLE:
+                // press io_button 0 to start
+                if(io_button_edge.out[0]){
+                    // start the alu
+                    states.d = States.START
+                }
+            // start state
+            States.START:
+                // press io_button 0 to initiate storing of lower 16 bits of a
+                led[0]=1
+                if (io_button_edge.out[0]) {
+                    // initiate storing of lower 16 bits of a
+                    a1.d = c{io_dip[1],io_dip[0]}
+                    // proceed to next stage
+                    states.d = States.STOREA1
+                }
+            // state to finish storing lower 16 bits of a
+            States.STOREA1:
+                led[1]=1
+                // press io_button 0 to initiate storing of higher 16 bits of a
+                if (io_button_edge.out[0]) {
+                    // initiate storing of higher 16 bits of a
+                    a2.d = c{io_dip[1],io_dip[0]}
+                    // proceed to next state
+                    states.d = States.STOREA2
+                }
+            States.STOREA2:
+                led[2]=1
+                // press io_button 0 to initiate storing of all bits of a and storing of lower 16 bits of b
+                if (io_button_edge.out[0]) {
+                    // initiate storing of all bits of a
+                    a.d = c{a2.q,a1.q}
+                    // initiate storing of lower 16 bits of b
+                    b2.d = c{io_dip[1],io_dip[0]}
+                    // proceed to next state
+                    states.d = States.STOREB1
+                }
+            States.STOREB1:
+                led[3]=1
+                // press io_button 0 to initiate storing of higher 16 bits of b
+                if (io_button_edge.out[0]) {
+                    // initiate storing of higher 16 bits of b
+                    b3.d = c{io_dip[1],io_dip[0]}
+                    // proceed to next state
+                    states.d = States.STOREB2
+                }
+            States.STOREB2:
+                led[4]=1
+                // initiate storing of all bits of b
+                b.d = c{b3.q, b2.q}
+                // press io_button 0 to enter compute state
+                if (io_button_edge.out[0]) {
+                    states.d = States.COMPUTE
+                } 
+            States.COMPUTE:
+                // store inputs (a,b) to intermediate dffs
+                a_reg.d = a.q
+                b_reg.d = b.q
+                // store alufn input from io_dip[2][5:0] into alufn dff
+                alufn_reg.d = io_dip[2][5:0]
+                z_v_n.d = c{alu.z, alu.v, alu.n}
+                // send outputs from intermediate dffs and alufn dff to alu module a and b inputs to perform alu functions
+                alu.a = a_reg.q;
+                alu.b = b_reg.q;
+                alu.alufn_signal = alufn_reg.q
+                // store computed output from alu into a dff
+                out.d = alu.out
+                // display bits 31 to 8 of output on io leds
+                io_led[2][7:0] = out.q[31:24]
+                io_led[1][7:0] = out.q[23:16]
+                io_led[0][7:0] = out.q[15:8]
+                // display z, v, and n values on led
+                led[7:5] = z_v_n.q
+                // press button_io 1 (middle) to return to default state
+                if(io_button_edge.out[1]){
+                    states.d = States.IDLE
+                }
+        }
+        // for seven segment display to display lowest 8 bits of output
+        decimal_renderer.value = out.q[7:0]
+        seg.values = decimal_renderer.digits
+        io_segment = ~seg.seg
+        io_select = ~seg.sel
     }
 }

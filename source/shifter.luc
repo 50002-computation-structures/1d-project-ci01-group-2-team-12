@@ -4,10 +4,77 @@ module shifter (
     input alufn[6],
     output shift[32]
 ) {
+    // instantiate 5 by 5 array of 16 bit shifter, 8 bit shifter, 4 bit shifter, 2 bit shifter and 1 bit shifter
+    // for left shifter, right shifter and right arithmetic shifter
+    x_bit_left_shifter shl[5](#SHIFT({5d16,5d8,5d4,5d2,5d1}))
+    x_bit_right_shifter shr[5](#SHIFT({5d16,5d8,5d4,5d2,5d1}))
+    x_bit_right_shifter sra[5](#SHIFT({5d16,5d8,5d4,5d2,5d1}))
 
     always {
-        // implement shifter unit logic here
-        shift = 0
-        
-    } 
+        // set initial values for all shifter inputs
+        shl.a = 5x{{32h00000000}}
+        shl.shift = 5b00000
+        shl.pad = 5b00000
+        shr.a = 5x{{32h00000000}}
+        shr.shift = 5b00000
+        shr.pad = 5b00000
+        sra.a = 5x{{32h00000000}}
+        sra.shift = 5b00000
+        sra.pad = 5b00000
+        //differentiate left shifter, right shifter and right arithmetic shifter based on alufn[1:0]
+        case(alufn[1:0]){
+            b00:
+                // continuously feed required values into the different bits shifters
+                repeat(i,5){
+                    if (i == 0){
+                        shl.a[i] = a;
+                        shl.shift[i] = b[i]
+                        shl.pad[i] = 0;
+                    } else {
+                        shl.a[i] = shl.out[i-1];
+                        shl.shift[i] = b[i]
+                        shl.pad[i] = 0;
+                    }
+                
+                }
+                // output is the output of the final one bit shifter
+                shift = shl.out[4];
+            b01:
+                // continuously feed required values into the different bits shifters
+                repeat(i,5){
+                    if (i == 0){
+                        shr.a[i] = a;
+                        //shr.shift[i] = b[4-i]
+                        shr.shift[i] = b[i]
+                        shr.pad[i] = 0;
+                    } else {
+                        shr.a[i] = shr.out[i-1];
+                        //shr.shift[i] = b[4-i]
+                        shr.shift[i] = b[i]
+                        shr.pad[i] = 0;
+                    }
+                }
+                // output is the output of the final one bit shifter
+                shift = shr.out[4];
+            b11:
+                // continuously feed required values into the different bits shifters
+                repeat(i,5){
+                    if (i == 0){
+                        sra.a[i] = a;
+                        //sra.shift[i] = b[4-i];
+                        sra.shift[i] = b[i];
+                        sra.pad[i] = a[31];
+                    } else {
+                        sra.a[i] = sra.out[i-1];
+                        //sra.shift[i] = b[4-i];
+                        sra.shift[i] = b[i];
+                        sra.pad[i] = a[31];
+                    }
+                }
+                // output is the output of the final one bit shifter
+                shift = sra.out[4];
+            //default case if none of the above alufn[1:0] is entered
+            default: shift = a;
+        }
+    }
 }

@@ -1,0 +1,204 @@
+module rom (
+    input test_id[5],
+    output a[32],
+    output b[32],
+    output alufn[6],
+    output expected[32] ,
+    output z[1],
+    output v[1],
+    output n[1]
+) {
+    
+    always {
+        //set initial values of a, b, alufn and expected
+        a = 32h00000000
+        b = 32h00000000
+        alufn = 6b000000
+        expected = 32h00000000
+        z = 0
+        v = 0
+        n = 0
+        case (test_id) {
+            // Overflow addition 
+            5b00000:
+                a = 32h80000000
+                b = 32h80000000
+                alufn = 6b000000
+                expected = 32h00000000
+                z = 1
+                v = 1
+                n = 0
+            // -ve + -ve addition
+            5b00001:
+                a = 32hFFFFFFFF
+                b = 32hFFFFFFFF
+                alufn = 6b000000
+                expected = 32hFFFFFFFE
+                z = 0
+                v = 0
+                n = 1
+            // Overflow subtraction 
+            5b00010:
+                a = 32h00000001
+                b = 32h80000000
+                alufn = 6b000001
+                expected = 32h80000001
+                z = 0
+                v = 1
+                n = 1
+            // +ve - -ve subtraction
+            5b00011:
+                a = 32h00000002
+                b = 32hFFFFFFFF
+                alufn = 6b000001
+                expected = 32h00000003
+                z = 0
+                v = 0
+                n = 0
+            // a x -1 multiplication
+            5b00100:
+                a = 32h00000002
+                b = 32hFFFFFFFF
+                alufn = 6b000010
+                expected = 32hFFFFFFFE
+            // +ve x +ve multiplication
+            5b00101:
+                a = 32h000000FF
+                b = 32h00000004
+                alufn = 6b000010
+                expected = 32h000003FC
+            // a AND not a
+            5b00110:
+                a = 32hFF00FF00
+                b = 32h00FF00FF
+                alufn = 6b011000
+                expected = 32h00000000
+            // a = 0xFFFFFFFF AND b = 0xFFFFFFFF
+            5b00111:
+                a = 32hFFFFFFFF
+                b = 32hFFFFFFFF
+                alufn = 6b011000
+                expected = 32hFFFFFFFF
+            // a OR a
+            5b01000:
+                a = 32hF000F000
+                b = 32hF000F000
+                alufn = 6b011110
+                expected = 32hF000F000
+            // a OR b
+            5b01001:
+                a = 32hF000F000
+                b = 32hC800C800
+                alufn = 6b011110
+                expected = 32hF800F800
+            // a XOR 0
+            5b01010:
+                a = 32hF000F000
+                b = 32h00000000
+                alufn = 6b010110
+                expected = 32hF000F000
+            // a XOR not a
+            5b01011:
+                a = 32hFF00F00F
+                b = 32h00FF0FF0
+                alufn = 6b010110
+                expected = 32hFFFFFFFF
+            // a 'A' b
+            5b01100:
+                a = 32hF000F000
+                b = 32hFFFFFFFF
+                alufn = 6b011010
+                expected = 32hF000F000
+            // a = 8h00000000 'A' b = 8h00000000
+            5b01101:
+                a = 32h00000000
+                b = 32h00000000
+                alufn = 6b011010
+                expected = 32h00000000
+            // a SHL 0
+            5b01110:
+                a = 32h0F000F00
+                b = 32h00000000
+                alufn = 6b100000
+                expected = 32h0F000F00
+            // a SHL max b
+            5b01111:
+                a = 32h000F000F
+                b = 32h0000001F
+                alufn = 6b100000
+                expected = 32h80000000
+            // a SHR b
+            5b10000:
+                a = 32h0F000F00
+                b = 32h00000004
+                alufn = 6b100001
+                expected = 32h00F000F0
+            // a SHR max b
+            5b10001:
+                a = 32hF000F000
+                b = 32h0000001F
+                alufn = 6b100001
+                expected = 32h00000001
+            // +ve a SRA max b
+            5b10010:
+                a = 32h70007000
+                b = 32h0000001F
+                alufn = 6b100011
+                expected = 32h00000000
+            // -ve a SRA max b
+            5b10011:
+                a = 32hF000F000
+                b = 32h0000001F
+                alufn = 6b100011
+                expected = 32hFFFFFFFF
+            // CMPRE a != b
+            5b10100:
+                a = 32h80008000
+                b = 32hF000F000
+                alufn = 6b110011
+                expected = 32h00000000
+            // CMPRE a = b
+            5b10101:
+                a = 32h70007000
+                b = 32h70007000
+                alufn = 6b110011
+                expected = 32h00000001
+            // CMPLT a < b
+            5b10110:
+                a = 32h000F000F
+                b = 32h00FF00FF
+                alufn = 6b110101
+                expected = 32h00000001
+            // CMPLT a = b
+            5b10111:
+                a = 32h000F000F
+                b = 32h000F000F
+                alufn = 6b110101
+                expected = 32h00000000
+            // CMPLE a = b
+            5b11000:
+                a = 32h000F000F
+                b = 32h000F000F
+                alufn = 6b110111
+                expected = 32h00000001
+            // CMPLE a > b
+            5b11001:
+                a = 32h00FF00FF
+                b = 32h000F000F
+                alufn = 6b110111
+                expected = 32h00000000
+            // DIV a/0
+            5b11010:
+                a = 32h00000004
+                b = 32h00000000
+                alufn = 6b000011
+                expected = 32h00000004
+            // Div a/b
+            5b11011:
+                a = 32h7FFFFFFE
+                b = 32h3FFFFFFE
+                alufn = 6b000011
+                expected = 32h00000002
+        }
+    }
+}

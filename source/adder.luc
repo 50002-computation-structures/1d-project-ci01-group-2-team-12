@@ -9,14 +9,23 @@ module adder #(
     output v,
     output n
 ) {
-    
+    rca rca(#SIZE(SIZE))
+    sig xb[SIZE]
     
     always {
-        // implement adder/subtractor unit logic here
-        out = 0
-        z = 0
-        v = 0 
-        n = 0
-        
+        xb = b^SIZEx{alufn_signal[0]}
+        rca.a = a
+        rca.b = xb
+        rca.cin = alufn_signal[0]
+        out = rca.s
+        // NOR reduction across all bits, check if all bits of s are 0
+        z = ~| rca.s
+        // v is for the overflow
+        v = (a[SIZE-1] & xb[SIZE-1] & ~rca.s[SIZE-1]) | (~a[SIZE-1] & ~xb[SIZE-1] & rca.s[SIZE-1])
+        //v = (a[SIZE-1] & xb[SIZE-1] & ~rca.s[SIZE-1] | (~a[SIZE-1]) & ~xb[SIZE-1] & rca.s[SIZE-1])
+        // Negative Flag (checks the MSB)
+        n = rca.s[SIZE-1]   
     }
 }
+
+

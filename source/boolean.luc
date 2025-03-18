@@ -3,15 +3,22 @@ module boolean #(
 )(
     input a[SIZE],
     input b[SIZE],
-    input alufn[6],
+    input alufn_signal[6],
     output bool[SIZE]
 ) {
+    // instantiation of mux_4 module
+    mux_4 mux_4_32[SIZE];
     
-    
-    always {
-        // implement boolean unit logic here
-        bool = 0 
-        
-    }
-    
+    always{
+        // create 32 copies of ALUFN signal as input to each mux_4 unit
+        mux_4_32.in = 32x{{alufn_signal[3:0]}};
+        // input in bits of a and b into mux_4 bitwise to perform AND, OR, XOR, 'A' based on the alufn_signal input
+        repeat(i, SIZE){
+            mux_4_32.s0[i] = a[i];
+            mux_4_32.s1[i] = b[i];
+            // insert bitwise output of mux_4 into overall output
+            bool[i] = mux_4_32.out[i];
+        }
+  }
+
 }

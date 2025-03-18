@@ -1,0 +1,16 @@
+// divide a by b
+module divider (
+    input a[32], // dividend
+    input b[32], // divisor
+    output d[32] // a/b,
+  ) {
+  always {
+    case(b){
+        //if b = 32h00000000, result is undetermined
+        32h00000000: d = a
+        //recorded bit will be decimal truncated result
+        default:d = a/b
+    }
+    
+  }
+}

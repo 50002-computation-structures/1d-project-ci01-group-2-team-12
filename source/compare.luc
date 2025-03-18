@@ -5,10 +5,15 @@ module compare (
     input alufn[6],
     output cmp
 ) {
-    
+    sig inputs[4];
+    // instantiate mux_4 module
+    mux_4 my_mux (.s0(alufn[1]),.s1(alufn[2]),.in(inputs));
     always {
-        
-        cmp = 0
-        
+        inputs[0] = 0;           // Default case
+        inputs[1] = z;           // When alufn[2:1] is 01
+        inputs[2] = n ^ v;       // When alufn[2:1] is 10
+        inputs[3] = z | (n ^ v); // When alufn[2:1] is 11
+        // compare output is output of mux_4
+        cmp = my_mux.out
     }
 }
