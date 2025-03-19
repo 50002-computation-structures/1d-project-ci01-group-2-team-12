@@ -22,7 +22,6 @@ module adder #(
         z = ~| rca.s
         // v is for the overflow
         v = (a[SIZE-1] & xb[SIZE-1] & ~rca.s[SIZE-1]) | (~a[SIZE-1] & ~xb[SIZE-1] & rca.s[SIZE-1])
-        //v = (a[SIZE-1] & xb[SIZE-1] & ~rca.s[SIZE-1] | (~a[SIZE-1]) & ~xb[SIZE-1] & rca.s[SIZE-1])
         // Negative Flag (checks the MSB)
         n = rca.s[SIZE-1]   
     }

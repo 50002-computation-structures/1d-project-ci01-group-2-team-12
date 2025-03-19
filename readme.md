@@ -18,6 +18,7 @@ To build the ALU modularly, we will create separate units for each core operatio
 3. **Boolean Unit** - Performs bitwise operations like XOR and masking.
 4. **Shifter Unit** - Supports bit shifts for division/multiplication by 2 and data manipulation.
 5. **Multiplier Unit** - Responsible for multiplication, requiring a more complex design.
+6. **Divider Unit (Extra)** - A modified unit of the multiplier unit responsible for division, this unit will be implemented in our final 1D Project
 
 Each of these modules will generate its own 32-bit output, which we’ll later combine to produce a single ALU result.
 
