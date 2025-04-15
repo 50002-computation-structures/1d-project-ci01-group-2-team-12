@@ -17,6 +17,7 @@ In multiplayer mode, two players each control a character and must work together
 - Right `io_button[2]` to shift the player right (single-player mode) or shift the right player right (multiplayer mode)
 - Special Button `io_dip[0][0]` (due to faulty io_button pinout) to provide special power mode lasting for 3 obstacles where obstacles are slowed down after achieving every multiple of 8 score
 - Mode Change Button `io_dip[0][1]` (due to faulty io_button pinout) to allow for mode change to double player mode at any point of single player mode
+- Start/Reset Button to start/reset the game
 
 ### Display
 
