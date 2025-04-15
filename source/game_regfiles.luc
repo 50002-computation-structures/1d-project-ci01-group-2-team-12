@@ -1,82 +1,189 @@
 module game_regfiles (
-    input clk,  // clock
-    input rst,  // reset
-    input wa[3], // write address
-    input we, // write enable
+    input clk,      // clock
+    input rst,      // reset
+    input wa[5],    // write address
+    input we,       // write enable
     input data[32], // data in
-    
-    input ra1[3], // read address port 1
-    input ra2[3], // read address port 2
+    input ra1[5],   // read address port 1
+    input ra2[5],   // read address port 2
     output rd1[32], // read data port 1
     output rd2[32], // read data port 1
-    
     // states
-    output timer_out[32],
-    output p1_score_out[32],
-    output p2_score_out[32],
-    output p1_button_press_out[32],
-    output p2_button_press_out[32],
-    output counter_out[32]
-    
+    output row4ANDplayer_out[32],
+    output score_out[32],
+    output specialcounter_out[32],
+    output specialtimer_out[32],
+    output shiftcounter_out[32],
+    output temp6_out[32],
+    output player_out[32],
+    output row1_out[32],
+    output row2_out[32],
+    output row3_out[32],
+    output row4_out[32],
+    output temp1_out[32],
+    output temp2_out[32],
+    output temp3_out[32],
+    output temp4_out[32],
+    output temp5_out[32],
+    output temp7_out[32],
+    output divscore_out[32],
+    output orplayer_out[32],
+    output p1_out[32],
+    output p2_out[32],
+    output p1_shiftcounter_out[32],
+    output p2_shiftcounter_out[32],
+    output temp8_out[32],
+    output row4XORplayer_out[32],
+    output temp9_out[32]
 ) {
     .clk(clk){
         .rst(rst){
-            dff p1_score[32](#INIT(0))
-            dff p2_score[32](#INIT(0))
-            dff p1_button_press[32](#INIT(0))
-            dff p2_button_press[32](#INIT(0))
-            dff current_counter[32](#INIT(0))
-            dff temp_var[32](#INIT(0))
-            dff current_timer[32](#INIT(0))
+            dff row4ANDplayer[32](#INIT(0))
+            dff score[32](#INIT(0))
+            dff specialcounter[32](#INIT(0))
+            dff specialtimer[32](#INIT(0))
+            dff shiftcounter[32](#INIT(4))
+            dff temp6[32](#INIT(0))
+            dff player[32](#INIT(0))
+            dff row1[32](#INIT(0))
+            dff row2[32](#INIT(0))
+            dff row3[32](#INIT(0))
+            dff row4[32](#INIT(0))
+            dff temp1[32](#INIT(0))
+            dff temp2[32](#INIT(0))
+            dff temp3[32](#INIT(0))
+            dff temp4[32](#INIT(0))
+            dff temp5[32](#INIT(0))
+            dff temp7[32](#INIT(0))
+            dff divscore[32](#INIT(0))
+            dff orplayer[32](#INIT(0))
+            dff p1[32](#INIT(0))
+            dff p2[32](#INIT(0))
+            dff p1_shiftcounter[32](#INIT(3))
+            dff p2_shiftcounter[32](#INIT(5))
+            dff temp8[32](#INIT(0))
+            dff row4XORplayer[32](#INIT(0))
+            dff temp9[32](#INIT(0))
         }
     }
-    
     always {
-        
         //write port
         if (we){
             case(wa){
-                d0 : p1_score.d = data
-                d1 : p2_score.d = data
-                d2 : p1_button_press.d = data
-                d3 : p2_button_press.d = data
-                d4 : current_counter.d = data
-                d5 : current_timer.d = data
-                d6 : temp_var.d = data
+                d0 : row4ANDplayer.d = data
+                d1 : score.d = data
+                d2 : specialcounter.d = data
+                d3 : specialtimer.d = data
+                d4 : shiftcounter.d = data
+                d5 : temp6.d = data
+                d6 : player.d = data
+                d7 : row1.d = data
+                d8 : row2.d = data
+                d9 : row3.d = data
+                d10 : row4.d = data
+                d11 : temp1.d = data
+                d12 : temp2.d = data
+                d13 : temp3.d = data
+                d14 : temp4.d = data
+                d15 : temp5.d = data
+                d16 : temp7.d = data
+                d17 : divscore.d = data
+                d18 : orplayer.d = data
+                d19 : p1.d = data
+                d20 : p2.d = data
+                d21 : p1_shiftcounter.d = data
+                d22 : p2_shiftcounter.d = data
+                d23 : temp8.d = data
+                d24 : row4XORplayer.d = data
+                d25 : temp9.d = data
             }
         }
-        
-        
         //read port a
         case(ra1){
-            d0 : rd1 = p1_score.q
-            d1 : rd1 = p2_score.q
-            d2 : rd1 = p1_button_press.q
-            d3 : rd1 = p2_button_press.q
-            d4 : rd1 = current_counter.q
-            d5 : rd1 = current_timer.q
-            d611 : rd1 = temp_var.q
+            d0 : rd1 = row4ANDplayer.q
+            d1 : rd1 = score.q
+            d2 : rd1 = specialcounter.q
+            d3 : rd1 = specialtimer.q
+            d4 : rd1 = shiftcounter.q
+            d5 : rd1 = temp6.q
+            d6 : rd1 = player.q
+            d7 : rd1 = row1.q
+            d8 : rd1 = row2.q
+            d9 : rd1 = row3.q
+            d10 : rd1 = row4.q
+            d11 : rd1 = temp1.q
+            d12 : rd1 = temp2.q
+            d13 : rd1 = temp3.q
+            d14 : rd1 = temp4.q
+            d15 : rd1 = temp5.q
+            d16 : rd1 = temp7.q
+            d17 : rd1 = divscore.q
+            d18 : rd1 = orplayer.q
+            d19 : rd1 = p1.q
+            d20 : rd1 = p2.q
+            d21 : rd1 = p1_shiftcounter.q
+            d22 : rd1 = p2_shiftcounter.q
+            d23 : rd1 = temp8.q
+            d24 : rd1 = row4XORplayer.q
+            d25 : rd1 = temp9.q
             default : rd1 = 0
         }
-        
         //read port b
         case(ra2){
-            d0 : rd2 = p1_score.q
-            d1 : rd2 = p2_score.q
-            d2 : rd2 = p1_button_press.q
-            d3 : rd2 = p2_button_press.q
-            d4 : rd2 = current_counter.q
-            d5 : rd2 = current_timer.q
-            d6 : rd2 = temp_var.q
+            d0 : rd2 = row4ANDplayer.q
+            d1 : rd2 = score.q
+            d2 : rd2 = specialcounter.q
+            d3 : rd2 = specialtimer.q
+            d4 : rd2 = shiftcounter.q
+            d5 : rd2 = temp6.q
+            d6 : rd2 = player.q
+            d7 : rd2 = row1.q
+            d8 : rd2 = row2.q
+            d9 : rd2 = row3.q
+            d10 : rd2 = row4.q
+            d11 : rd2 = temp1.q
+            d12 : rd2 = temp2.q
+            d13 : rd2 = temp3.q
+            d14 : rd2 = temp4.q
+            d15 : rd2 = temp5.q
+            d16 : rd2 = temp7.q
+            d17 : rd2 = divscore.q
+            d18 : rd2 = orplayer.q
+            d19 : rd2 = p1.q
+            d20 : rd2 = p2.q
+            d21 : rd2 = p1_shiftcounter.q
+            d22 : rd2 = p2_shiftcounter.q
+            d23 : rd2 = temp8.q
+            d24 : rd2 = row4XORplayer.q
+            d25 : rd2 = temp9.q
             default : rd2 = 0
         }
-
-        p1_score_out = p1_score.q
-        p2_score_out = p2_score.q
-        p1_button_press_out = p1_button_press.q[1:0]
-        p2_button_press_out = p2_button_press.q[1:0]
-        timer_out = current_timer.q
-        counter_out = current_counter.q
- 
+        // output
+        row4ANDplayer_out = row4ANDplayer.q
+        score_out = score.q
+        specialcounter_out = specialcounter.q
+        specialtimer_out = specialtimer.q
+        shiftcounter_out = shiftcounter.q
+        temp6_out = temp6.q
+        player_out = player.q
+        row1_out = row1.q
+        row2_out = row2.q
+        row3_out = row3.q
+        row4_out = row4.q
+        temp1_out = temp1.q
+        temp2_out = temp2.q
+        temp3_out = temp3.q
+        temp4_out = temp4.q
+        temp5_out = temp5.q
+        temp7_out = temp7.q
+        divscore_out = divscore.q
+        orplayer_out = orplayer.q
+        p1_out = p1.q
+        p2_out = p2.q
+        p1_shiftcounter_out = p1_shiftcounter.q
+        p2_shiftcounter_out = p2_shiftcounter.q
+        temp8_out = temp8.q
+        row4XORplayer_out = row4XORplayer.q
+        temp9_out = temp9.q
     }
 }

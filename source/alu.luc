@@ -7,61 +7,66 @@ module alu (
     output v,
     output n
 ) {
-    
+    // instantiate adder module
+    adder adder(#SIZE(32))
+    // instantiate compare module
+    compare compare(.z(adder.z),.v(adder.v),.n(adder.n),.alufn(alufn_signal))
+    // instantiate boolean module
+    boolean boolean(.a(a),.b(b),.alufn_signal(alufn_signal))
+    // instantiate shifter module
+    shifter shifter(.a(a),.b(b),.alufn(alufn_signal))
+    // instantiate multiplier module
+    multiplier multiplier(.a(a),.b(b))
+    // instantiate divider module
+    divider divider(.a(a),.b(b))
+    // intermediate signal
     sig out_sig[32]
-    
-    
     always {
-        
         z = 0
         v = 0
         n = 0
-        
+        // send data from inputs a, b and alufn_signal to adder inputs a, b and alufn_signal
+        adder.a = a;
+        adder.b = b;
+        adder.alufn_signal = alufn_signal;
+        // store outputs z, v and n from adder into inputs z, v and n
+        z = adder.z;
+        v = adder.v;
+        n = adder.n;
         case(alufn_signal){
             6h00: // ADD
-                out_sig = a + b
-                z = ~|out_sig
-                v = (a[31] & (b[31] ^ alufn_signal[0]) & !out_sig[31]) | (!a[31] & !(b[31] ^ alufn_signal[0]) & out_sig[31]) 
-                n = out_sig[31]
+                out_sig = adder.out;
             6h01: // SUB
-                out_sig = a - b
-                z = ~|out_sig
-                v = (a[31] & (b[31] ^ alufn_signal[0]) & !out_sig[31]) | (!a[31] & !(b[31] ^ alufn_signal[0]) & out_sig[31]) 
-                n = out_sig[31]   
+                out_sig = adder.out;
             6h02: // MUL
-                out_sig = a * b 
-            6h18: // BITWISE AND
-                out_sig = a & b 
-            6h1E: // BITWISE OR 
-                out_sig = a | b 
-            6h16: // BITWISE XOR
-                out_sig = a ^ b 
+                out_sig = multiplier.mul;
+            6h03: // DIV
+                out_sig = divider.d;
+            6h18: // AND
+                out_sig = boolean.bool;
+            6h1E: // OR
+                out_sig = boolean.bool;
+            6h16: // XOR
+                out_sig = boolean.bool;
             6h1A: // "A"
-                out_sig = a
+                out_sig = boolean.bool;
+            6h1C: // "B"
+                out_sig = boolean.bool;
             6h20: // SHL 
-                out_sig = a << b[4:0]
+                out_sig = shifter.shift;
             6h21: // SHR 
-                out_sig = a >> b[4:0]
-            6h23: // SRA 
-                out_sig = a >>> b[4:0]
+                out_sig = shifter.shift;
+            6h23: // SRA
+                out_sig = shifter.shift;
             6h33: // CMPEQ 
-                out_sig = a == b 
-            6h35: // CMPLT 
-                out_sig = a < b 
+                out_sig = c{31x{b0}, compare.cmp};
+            6h35: // CMPLT
+                out_sig = c{31x{b0}, compare.cmp};
             6h37: // CMPLE
-                out_sig = a <= b
-            
-            
+                out_sig = c{31x{b0}, compare.cmp};
             default:
-                out_sig = 0
-           
-            
+                out_sig = 0      
         }
-        
-
         out = out_sig
-        
-        
-        
     }
 }

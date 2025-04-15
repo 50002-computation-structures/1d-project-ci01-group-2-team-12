@@ -1,0 +1,47 @@
+// divide a by b
+module divider (
+    input a[32], // dividend
+    input b[32], // divisor
+    output d[32] // a/b,
+  ) {
+  always {
+    // division is done by left shifting to increase speed of division, limited to division by powers of 2
+    case(b){
+        // if b = 32h00000000, result is undetermined
+        32h00000000: d = a;
+        32h00000001: d = a;         // Division by 1
+        32h00000002: d = a >> 1;    // Division by 2
+        32h00000004: d = a >> 2;    // Division by 4
+        32h00000008: d = a >> 3;    // Division by 8
+        32h00000010: d = a >> 4;    // Division by 16
+        32h00000020: d = a >> 5;    // Division by 32
+        32h00000040: d = a >> 6;    // Division by 64
+        32h00000080: d = a >> 7;    // Division by 128
+        32h00000100: d = a >> 8;    // Division by 256
+        32h00000200: d = a >> 9;    // Division by 512
+        32h00000400: d = a >> 10;   // Division by 1024
+        32h00000800: d = a >> 11;   // Division by 2048
+        32h00001000: d = a >> 12;   // Division by 4096
+        32h00002000: d = a >> 13;   // Division by 8192
+        32h00004000: d = a >> 14;   // Division by 16384
+        32h00008000: d = a >> 15;   // Division by 32768
+        32h00010000: d = a >> 16;   // Division by 65536
+        32h00020000: d = a >> 17;   // Division by 131072
+        32h00040000: d = a >> 18;   // Division by 262144
+        32h00080000: d = a >> 19;   // Division by 524288
+        32h00100000: d = a >> 20;   // Division by 1048576
+        32h00200000: d = a >> 21;   // Division by 2097152
+        32h00400000: d = a >> 22;   // Division by 4194304
+        32h00800000: d = a >> 23;   // Division by 8388608
+        32h01000000: d = a >> 24;   // Division by 16777216
+        32h02000000: d = a >> 25;   // Division by 33554432
+        32h04000000: d = a >> 26;   // Division by 67108864
+        32h08000000: d = a >> 27;   // Division by 134217728
+        32h10000000: d = a >> 28;   // Division by 268435456
+        32h20000000: d = a >> 29;   // Division by 536870912
+        32h40000000: d = a >> 30;   // Division by 1073741824
+        32h80000000: d = a >> 31;   // Division by 2147483648
+        default: d = 0;
+    }
+  }
+}

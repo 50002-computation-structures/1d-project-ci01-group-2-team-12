@@ -1,346 +1,2435 @@
-module game_cu (
-    input clk,  // clock
-    input rst,  // reset
-    input increase_counter,
-    input decrease_timer,
-    input regfile_rd2[32], //direct reading of regfile data from rd2
-    
-    input p1_button,
-    input p2_button,
-    
-    output alufn[6],
-    output asel[3],
-    output bsel[3],
-    output alu_out_sel[2],
-    output regfile_wa[3],
-    output regfile_ra1[3],
-    output regfile_ra2[3],
-    output regfile_we,
-    output debug[4]
+module game_cu #(
+    // clock div for 2s
+    SLOWER_CLOCK_DIV ~ 27 : SLOWER_CLOCK_DIV > 0,
+    // clock div for 4s
+    SLOWEST_CLOCK_DIV ~ 28 : SLOWEST_CLOCK_DIV > 0
+)(
+    input clk,              // clock
+    input rst,              // reset
+    input increase_timer,   // signal for 1s delay
+    input increase_timerx1, // signal for 2s delay
+    input increase_timerx2, // signal for 4s delay
+    input regfile_rd2[32],  // direct reading of regfile data from rd2
+    input p1_button,        // p1 button input
+    input p2_button,        // p2 button input
+    input p3_button,        // p3 button input
+    input p4_button,
+    output alufn[6],        // alufn output
+    output asel[4],         // asel mux output
+    output bsel[4],         // bsel mux output
+    output alu_out_sel[2],  // wdsel mux output
+    output regfile_wa[5],   // wa output
+    output regfile_ra1[5],  // ra1 output for asel mux
+    output regfile_ra2[5],  // ra2 output for bsel mux
+    output regfile_we       // we output      
 ) {
-    
+    // All Game States
     enum GameStates {
-        START_SET_TIMER,
-        INC_COUNTER, 
-        IDLE, 
-        CHECK_P1BUTTONCOUNT, 
+        START_SET_PLAYER,
+        START_SET_ORPLAYER,
+        IDLE,
+        CHECK_SHIFT_COUNTER_P1,
         BRANCH_P1BUTTON,
-        INCREASE_P1SCORE, 
-        INCREASE_P1BUTTONCOUNT,
-        CHECK_P2BUTTONCOUNT, 
+        SHIFT_LEFT,
+        PLAYEROR_P1,
+        DECREASE_SHIFT_COUNTER,
+        CHECK_SHIFT_COUNTER_P2,
         BRANCH_P2BUTTON,
-        INCREASE_P2SCORE, 
-        INCREASE_P2BUTTONCOUNT,
-        RESET_COUNTER, 
-        DECREASE_GAMETIMER, 
-        CHECK_GAMETIMER,
-        BRANCH_GAMETIMER,
-        CHECK_P1P2BUTTONCOUNT,
-        BRANCHCHECK_P1P2BUTTONCOUNT,
-        BRANCH_P1BUTTONCOUNT, 
-        CHECK_DRAW,
-        BRANCH_DRAW,
-        DRAW,
-        CHECK_WINNER,
-        BRANCH_WINNER,
-        P1WINS,
-        P2LOSE,
-        P2WINS,
-        P1LOSE,
-        GAMEOVER
+        SHIFT_RIGHT,
+        PLAYEROR_P2,
+        INCREASE_SHIFT_COUNTER,
+        CHECK_SPECIAL_COUNTER,
+        BRANCH_P3BUTTON,
+        SET_SPECIAL_TIMER,
+        INCREASE_SPECIAL_COUNTER,
+        STORE_ROW3_ROW4_1,
+        CHECK_SPECIAL_TIMER_OBSTACLE_1,
+        BRANCH_SPECIAL_TIMER_OBSTACLE_1,
+        STORE_ROW2_ROW3_1,
+        STORE_ROW1_ROW2_1,
+        STORE_RNG,
+        STORE_RNG_ROW1,
+        BRANCH_INTERMEDIATE,
+        STORE_ROW3_ROW4_2,
+        CHECK_SPECIAL_TIMER_OBSTACLE_2,
+        BRANCH_SPECIAL_TIMER_OBSTACLE_2,
+        STORE_ROW2_ROW3_2,
+        STORE_ROW1_ROW2_2,
+        STORE_0_ROW1,
+        ROW4_AND_PLAYER,
+        CHECK_COLLISION,
+        BRANCH_COLLISION,
+        CHECK_SPECIAL_TIMER_REDUCE,
+        BRANCH_SPECIAL_TIMER_REDUCE,
+        DECREASE_SPECIAL_TIMER,
+        CHECK_ROW4_0,
+        BRANCH_ROW4_0,
+        INCREASE_SCORE,
+        DIV_SCORE,
+        CHECK_SPECIAL_COUNTER_INDICATION,
+        CHECK_SCORE_9999,
+        BRANCH_SCORE_9999,
+        ROW1_WIN,
+        ROW2_WIN,
+        ROW3_WIN,
+        PLAYER_WIN,
+        GAMEOVER_WIN,
+        ROW1_LOSE,
+        ROW2_LOSE,
+        ROW3_LOSE,
+        PLAYER_LOSE,
+        GAMEOVER_LOSE,
+        START_SET_P1_DOUBLE,
+        START_SET_P2_DOUBLE,
+        START_SET_ORPLAYER_DOUBLE,
+        RESET_SCORE_DOUBLE,
+        RESET_SPECIAL_COUNTER_DOUBLE,
+        RESET_SPECIAL_TIMER_DOUBLE,
+        RESET_TEMP6_DOUBLE,
+        RESET_ROW1_DOUBLE,
+        RESET_ROW2_DOUBLE,
+        RESET_ROW3_DOUBLE,
+        RESET_ROW4_DOUBLE,
+        RESET_TEMP1_DOUBLE,
+        RESET_TEMP2_DOUBLE,
+        RESET_TEMP3_DOUBLE,
+        RESET_TEMP4_DOUBLE,
+        RESET_TEMP5_DOUBLE,
+        RESET_TEMP7_DOUBLE,
+        RESET_DIVSCORE_DOUBLE,
+        RESET_TEMP8_DOUBLE,
+        IDLE_DOUBLE,
+        CHECK_P1_SHIFT_COUNTER_DOUBLE,
+        BRANCH_P1BUTTON_DOUBLE,
+        SET_P1_DOUBLE,
+        PLAYEROR_SET_P1_DOUBLE,
+        SET_P1_SHIFT_COUNTER_DOUBLE,
+        SHIFT_LEFT_DOUBLE,
+        PLAYEROR_P1_DOUBLE,
+        DECREASE_P1_SHIFT_COUNTER_DOUBLE,
+        CHECK_P2_SHIFT_COUNTER_DOUBLE,
+        BRANCH_P2BUTTON_DOUBLE,
+        SET_P2_DOUBLE,
+        PLAYEROR_SET_P2_DOUBLE,
+        SET_P2_SHIFT_COUNTER_DOUBLE,
+        SHIFT_RIGHT_DOUBLE,
+        PLAYEROR_P2_DOUBLE,
+        INCREASE_P2_SHIFT_COUNTER_DOUBLE,
+        CHECK_SPECIAL_COUNTER_DOUBLE,
+        BRANCH_P3BUTTON_DOUBLE,
+        SET_SPECIAL_TIMER_DOUBLE,
+        INCREASE_SPECIAL_COUNTER_DOUBLE,
+        STORE_ROW3_ROW4_1_DOUBLE,
+        CHECK_SPECIAL_TIMER_OBSTACLE_1_DOUBLE,
+        BRANCH_SPECIAL_TIMER_OBSTACLE_1_DOUBLE,
+        STORE_ROW2_ROW3_1_DOUBLE,
+        STORE_ROW1_ROW2_1_DOUBLE,
+        STORE_RNG_DOUBLE,
+        STORE_RNG_ROW1_DOUBLE,
+        BRANCH_INTERMEDIATE_DOUBLE,
+        STORE_ROW3_ROW4_2_DOUBLE,
+        CHECK_SPECIAL_TIMER_OBSTACLE_2_DOUBLE,
+        BRANCH_SPECIAL_TIMER_OBSTACLE_2_DOUBLE,
+        STORE_ROW2_ROW3_2_DOUBLE,
+        STORE_ROW1_ROW2_2_DOUBLE,
+        STORE_0_ROW1_DOUBLE,
+        ROW4_XOR_PLAYER_DOUBLE,
+        CHECK_COLLISION_DOUBLE,
+        BRANCH_COLLISION_DOUBLE,
+        CHECK_ROW4_0_COLLISION_DOUBLE,
+        BRANCH_ROW4_0_COLLISION_DOUBLE,
+        CHECK_SPECIAL_TIMER_REDUCE_DOUBLE,
+        BRANCH_SPECIAL_TIMER_REDUCE_DOUBLE,
+        DECREASE_SPECIAL_TIMER_DOUBLE,
+        CHECK_ROW4_0_DOUBLE,
+        BRANCH_ROW4_0_DOUBLE,
+        INCREASE_SCORE_DOUBLE,
+        DIV_SCORE_DOUBLE,
+        CHECK_SPECIAL_COUNTER_INDICATION_DOUBLE,
+        CHECK_SCORE_9999_DOUBLE,
+        BRANCH_SCORE_9999_DOUBLE,
+        ROW1_WIN_DOUBLE,
+        ROW2_WIN_DOUBLE,
+        ROW3_WIN_DOUBLE,
+        PLAYER_WIN_DOUBLE,
+        GAMEOVER_WIN_DOUBLE,
+        ROW1_LOSE_DOUBLE,
+        ROW2_LOSE_DOUBLE,
+        ROW3_LOSE_DOUBLE,
+        PLAYER_LOSE_DOUBLE,
+        GAMEOVER_LOSE_DOUBLE  
     }
-    
-    dff game_fsm[$width(GameStates)](#INIT(GameStates.START_SET_TIMER), .clk(clk), .rst(rst))
-    
-    always {
-        
+    // game_fsm dff
+    dff game_fsm[$width(GameStates)](#INIT(GameStates.START_SET_PLAYER), .clk(clk), .rst(rst))
+    // intermediate dff to store current state during button press to resume to state after button p1 press state path
+    dff store_statep1[8](.clk(clk), .rst(rst))
+    // intermediate dff to store current state during button press to resume to state after button p2 press state path
+    dff store_statep2[8](.clk(clk), .rst(rst))
+    // intermediate dff to store current state during button press to resume to state after button p3 press state path
+    dff store_statep3[8](.clk(clk), .rst(rst))
+    // intermediate dff to store lowest 2 bits of rng result for random obstacle generation
+    dff store_rng[4](.clk(clk), .rst(rst))
+    // generate 2s clock using counter module
+    counter game_timer_clock(#SIZE(1),#DIV(SLOWER_CLOCK_DIV), .rst(rst), .clk(clk)) 
+    // instantiate random_number_generator module for random obstacle generation
+    random_number_generator generator(.clk(clk),.slow_clk(game_timer_clock.value),.refresh(rst))
+    always { 
         // standard setting unless otherwise overwritten by each case 
         alufn = 0
         asel = 0 
         bsel = 0
         regfile_we = 0
-        regfile_wa = d6 
+        regfile_wa = d10 
         regfile_ra1 = d0
         regfile_ra2 = d0
         alu_out_sel = 0
-        
-        debug = b0000
-        
-        
+        // game states
         game_fsm.d = game_fsm.q
+        // reset game
         if (rst){
-            game_fsm.d = GameStates.START_SET_TIMER
+            game_fsm.d = GameStates.START_SET_PLAYER
         }
         else{
-            
+            // game fsm
             case(game_fsm.q){
-                
-                GameStates.START_SET_TIMER: 
-                    alufn = b011010                             //A
-                    asel = b11                                  //30
+                // game start state where player is set to center position
+                GameStates.START_SET_PLAYER: 
+                    alufn = b011010                             // A
+                    asel = b0100                                // constant 16
+                    bsel = b0000
                     regfile_we = 1 
-                    regfile_wa = d5                     //timer reg
-                    regfile_ra2 = d5              //direct read (temp reg)
-                    //if counter is set
-                    if (regfile_rd2[4]){                      //direct read in
-                        game_fsm.d = GameStates.INC_COUNTER
-                    }
-                    else{
-                        game_fsm.d =  GameStates.START_SET_TIMER
-                    }
-                
-                GameStates.INC_COUNTER:
-                    //set output and next state
-                    alufn = b000000                             //ADD
-                    regfile_ra1 = d4              //counter reg
-                    bsel = b01                                  //constant 1 
-                    asel = b00                                  
+                    regfile_wa = d6                             // player reg
+                    regfile_ra2 = d6                            // direct read (player reg)
+                    game_fsm.d = GameStates.START_SET_ORPLAYER
+                // for compatability with double player mode
+                GameStates.START_SET_ORPLAYER: 
+                    alufn = b011110                             // OR
+                    asel = b0010                                // constant 0                            
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d18                            // orplayer reg
+                    regfile_ra2 = d6                            // direct read (player reg)
+                    game_fsm.d = GameStates.IDLE                 
+                // check shift counter to check if player can shift left or not when p1 is pressed
+                GameStates.CHECK_SHIFT_COUNTER_P1:
+                    alufn = b110011                             // CMPEQ
+                    asel = b0010                                // constant 0
+                    bsel = b0000                                  
                     regfile_we = 1
-                    regfile_wa = d4                     //counter reg 
-                    game_fsm.d = GameStates.IDLE
-                
-                GameStates.CHECK_P1BUTTONCOUNT:
-                    alufn = b110101                             //CMPLT
-                    regfile_ra1 = d2              //p1 button count reg
-                    bsel = b11                                  //constant 3
-                    asel = b00 
-                    regfile_we = 1
-                    regfile_wa = d6                     //temp reg
+                    regfile_wa = d13                            // temp reg
+                    regfile_ra2 = d4                            // direct read (shift counter reg)
                     game_fsm.d = GameStates.BRANCH_P1BUTTON
-                
+                // branch p1 button to shift player to the left if shift counter is not 0, IDLE otherwise
                 GameStates.BRANCH_P1BUTTON:
-                    regfile_ra2 = d6              //temp reg 
-                    if (regfile_rd2[0]){                      //direct read in
-                        game_fsm.d = GameStates.INCREASE_P1SCORE
+                    regfile_ra2 = d13                           // temp reg 
+                    if (regfile_rd2[0]){                        // direct read in
+                        game_fsm.d = store_statep1.q
                     }
                     else{
-                        game_fsm.d = GameStates.IDLE
+                        game_fsm.d = GameStates.SHIFT_LEFT
                     }
-                
-                GameStates.INCREASE_P1SCORE:
-                    alufn = b000000                           //ADD
-                    regfile_ra2 = d0            //P1 score reg 
-                    regfile_ra1 = d4            //counter reg 
-                    bsel = b00                                //P1 score reg 
-                    asel = b00                                //counter  reg
-                    regfile_we = 1                           
-                    regfile_wa = d0                   //P1 score reg
-                    game_fsm.d = GameStates.INCREASE_P1BUTTONCOUNT
-                
-                GameStates.INCREASE_P1BUTTONCOUNT:
-                    alufn = b000000
-                    regfile_ra2 = d2
-                    bsel = b00 // p1's button
-                    asel = b01 // plus 1 
-                    regfile_we = 1 
-                    regfile_wa = d2
-                    game_fsm.d = GameStates.RESET_COUNTER
-                
-                GameStates.CHECK_P2BUTTONCOUNT:
-                    alufn = b110101                           //CMPLT
-                    regfile_ra1 = d3            //P2 button count reg
-                    bsel = b11                                //constant 3
-                    asel = b00 
+                // player shift left
+                GameStates.SHIFT_LEFT:
+                    alufn = b100000                             // SHL
+                    asel = b0000                     
+                    bsel = b0001                                // constant 1          
                     regfile_we = 1
-                    regfile_wa = d6                   //temp reg
-                    game_fsm.d = GameStates.BRANCH_P2BUTTON 
-                
+                    regfile_wa = d6                             // player reg
+                    regfile_ra1 = d6                            // direct read (player reg)
+                    game_fsm.d = GameStates.PLAYEROR_P1
+                // update orplayer reg after shifting left
+                GameStates.PLAYEROR_P1: 
+                    alufn = b011110                             // OR
+                    asel = b0010                                // constant 0                            
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d18                            // orplayer reg
+                    regfile_ra2 = d6                            // direct read (player reg)
+                    game_fsm.d = GameStates.DECREASE_SHIFT_COUNTER
+                // decrease shift counter to signify shifting left
+                GameStates.DECREASE_SHIFT_COUNTER:
+                    alufn = b000001                             // SUB
+                    asel = b0000                                       
+                    bsel = b0001                                // constant 1          
+                    regfile_we = 1
+                    regfile_wa = d4                             // shift counter reg
+                    regfile_ra1 = d4                            // direct read (shift counter reg)
+                    game_fsm.d = store_statep1.q
+               // check shift counter to check if player can shift right or not when p2 is pressed
+                GameStates.CHECK_SHIFT_COUNTER_P2:
+                    alufn = b110011                             // CMPEQ
+                    asel = b0000  
+                    bsel = b0010                                // constant 8                          
+                    regfile_we = 1
+                    regfile_wa = d14                            // temp reg
+                    regfile_ra1 = d4                            // direct read (shift counter reg)
+                    game_fsm.d = GameStates.BRANCH_P2BUTTON
+                // branch p2 button to shift player to the right if shift counter is not 8, IDLE otherwise
                 GameStates.BRANCH_P2BUTTON:
-                    regfile_ra2 = d6            //temp reg
-                    if (regfile_rd2[0]){                    //direct read
-                        game_fsm.d = GameStates.INCREASE_P2SCORE
+                    regfile_ra2 = d14                           // temp reg 
+                    if (regfile_rd2[0]){                        // direct read in
+                        game_fsm.d = store_statep2.q
                     }
                     else{
-                        game_fsm.d = GameStates.IDLE
+                        game_fsm.d = GameStates.SHIFT_RIGHT
                     }
-                
-                GameStates.INCREASE_P2SCORE:
-                    //set output and next state 
-                    alufn = b000000                          //ADD
-                    regfile_ra2 = d1           //P2 score reg 
-                    regfile_ra1 = d4           //counter reg
-                    bsel = b00 
-                    asel = b00 
+                // player shift right
+                GameStates.SHIFT_RIGHT:
+                    alufn = b100001                             // SHR
+                    asel = b0000
+                    bsel = b0001                                // constant 1                            
+                    regfile_we = 1
+                    regfile_wa = d6                             // player reg
+                    regfile_ra1 = d6                            // direct read (player)
+                    game_fsm.d = GameStates.PLAYEROR_P2
+                // update orplayer reg after shifting right
+                GameStates.PLAYEROR_P2: 
+                    alufn = b011110                             // OR
+                    asel = b0010                                // constant 0                            
+                    bsel = b0000                                 
                     regfile_we = 1 
-                    regfile_wa = d1                 //P2 score reg
-                    game_fsm.d = GameStates.INCREASE_P2BUTTONCOUNT  
-                
-                GameStates.INCREASE_P2BUTTONCOUNT:
-                    alufn = b000000 // ADD
-                    regfile_ra2 = d3          //P2 button reg
-                    bsel = b00                         
-                    asel = b01                              //constant 1
-                    regfile_we = 1 
-                    regfile_wa = d3                 //P2 button reg
-                    game_fsm.d = GameStates.RESET_COUNTER
-                
-                GameStates.RESET_COUNTER:
-                    alu_out_sel = b11                       //constant 0
+                    regfile_wa = d18                            // orplayer reg
+                    regfile_ra2 = d6                            // direct read (player reg)
+                    game_fsm.d = GameStates.INCREASE_SHIFT_COUNTER
+                // increase shift counter to signify shifting right
+                GameStates.INCREASE_SHIFT_COUNTER:
+                    alufn = b000000                             // ADD
+                    asel = b0000
+                    bsel = b0001                                // constant 1                            
                     regfile_we = 1
-                    regfile_wa = d4                 //counter reg
-                    game_fsm.d = GameStates.CHECK_P1P2BUTTONCOUNT 
-                
-                GameStates.DECREASE_GAMETIMER:
-                    alufn = b000001                         //SUB
-                    regfile_ra1 = d5          //timer reg
-                    asel = b00 
-                    bsel = b01                              //constant 1
+                    regfile_wa = d4                             // shift counter reg
+                    regfile_ra1 = d4                            // direct read (shift counter reg)
+                    game_fsm.d = store_statep2.q
+                // check if special counter is less than score / 8 or not to determine if power-up can be activated when p3 is pressed
+                GameStates.CHECK_SPECIAL_COUNTER:
+                    alufn = b110101                             // CMPLT
+                    asel = b0000                                  
+                    bsel = b0000                                  
                     regfile_we = 1
-                    regfile_wa = d5
-                    game_fsm.d = GameStates.IDLE
-                
-                GameStates.CHECK_GAMETIMER:
-                    alufn = b110011                         //CMPEQ
-                    regfile_ra1 = d5          //timer reg
-                    asel = b00
-                    bsel = b10                              //constant 0
-                    regfile_we = 1
-                    regfile_wa = d6                 //temp eg 
-                    game_fsm.d = GameStates.BRANCH_GAMETIMER
-                
-                GameStates.BRANCH_GAMETIMER:
-                    regfile_ra2 = d6          //temp reg
-                    if (~regfile_rd2[0]){                 //if timer is not zero
-                        game_fsm.d = GameStates.DECREASE_GAMETIMER
+                    regfile_wa = d5                             // temp reg
+                    regfile_ra1 = d2                            // direct read (special counter reg)
+                    regfile_ra2 = d17                           // direct read (divscore reg)
+                    game_fsm.d = GameStates.BRANCH_P3BUTTON
+                // branch p3 button to activate power-up mode
+                GameStates.BRANCH_P3BUTTON:
+                    regfile_ra2 = d5                            // temp reg 
+                    if (regfile_rd2[0]){                        // direct read in
+                        game_fsm.d = GameStates.INCREASE_SPECIAL_COUNTER
                     }
                     else{
-                        game_fsm.d = GameStates.CHECK_DRAW
+                        game_fsm.d = store_statep3.q
                     }
-                
-                GameStates.CHECK_P1P2BUTTONCOUNT:
-                    alufn = b110011 //CMPEQ
-                    regfile_ra1 = d2         //P1 button reg
-                    regfile_ra2 = d3         //P2 button reg
-                    asel = b00
-                    bsel = b00
-                    regfile_we = 1
-                    regfile_wa = d6                //temp reg
-                    game_fsm.d = GameStates.BRANCHCHECK_P1P2BUTTONCOUNT
-                
-                GameStates.BRANCHCHECK_P1P2BUTTONCOUNT:
-                    regfile_ra2 = d6        //temp reg
-                    if(regfile_rd2[0]){  
-                        alufn = b110011                     //CMPEQ 
-                        regfile_ra1 = d2      //P1 button reg
-                        bsel = b11                          //constant 3
+                // increase special counter to signify power-up use increase by 1
+                GameStates.INCREASE_SPECIAL_COUNTER:
+                    alufn = b000000                             // ADD
+                    asel = b0000
+                    bsel = b0001                                // constant 1
+                    regfile_we = 1                           
+                    regfile_wa = d2                             // special counter reg
+                    regfile_ra1 = d2                            // direct read (special counter reg) 
+                    game_fsm.d =  GameStates.SET_SPECIAL_TIMER
+                // set timer for power-up to last for at most 3 obstacles
+                GameStates.SET_SPECIAL_TIMER: 
+                    alufn = b011100                             // B
+                    asel = b0000                                    
+                    bsel = b0011                                // constant 3
+                    regfile_we = 1 
+                    regfile_wa = d3                             // special timer reg
+                    regfile_ra1 = d3                            // direct read (special timer reg)
+                    game_fsm.d = store_statep3.q
+                // obstacle move from row 3 to row 4
+                GameStates.STORE_ROW3_ROW4_1: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_ROW3_ROW4_1
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_ROW3_ROW4_1
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_ROW3_ROW4_1
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        alufn = b011010                          // A
+                        asel = b0000                                    
+                        bsel = b0000                                 
+                        regfile_we = 1 
+                        regfile_wa = d10                         // row 4 reg
+                        regfile_ra1 = d9                         // direct read (row 3 reg)
+                        regfile_ra2 = d10                        // direct read (row 4 reg)
+                        game_fsm.d = GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_1
+                    }
+                // check special timer to determine if in normal mode or power-up mode
+                GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_1:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_1
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_1
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_1
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        alufn = b110011                          // CMPEQ
+                        asel = b0010                             // constant 0
+                        bsel = b0000                                  
                         regfile_we = 1
-                        regfile_wa = d6             //temp reg
-                        game_fsm.d = GameStates.BRANCH_P1BUTTONCOUNT  
+                        regfile_wa = d15                         // temp reg
+                        regfile_ra2 = d3                         // direct read (special timer reg)
+                        game_fsm.d = GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_1
                     }
-                    else{
-                        game_fsm.d = GameStates.IDLE
+                // branch special timer
+                GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_1:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_1
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
                     }
-                
-                
-                GameStates.BRANCH_P1BUTTONCOUNT:
-                    regfile_ra2 = d6       //temp reg
-                    if(regfile_rd2[0]){
-                        game_fsm.d = GameStates.CHECK_DRAW   
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_1
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
                     }
-                    
-                    else{
-                        game_fsm.d = GameStates.IDLE
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_1
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
                     }
-                
-                GameStates.CHECK_DRAW:
-                    alufn = b110011 //CMPEQ
-                    regfile_ra1 = d0      //P1 score reg
-                    regfile_ra2 = d1      //P2 score reg
-                    asel = b00
-                    bsel = b00
-                    regfile_we = 1
-                    regfile_wa = d6             //temp reg
-                    game_fsm.d = GameStates.BRANCH_DRAW
-                
-                GameStates.BRANCH_DRAW:
-                    regfile_ra2 = d6      //temp reg
-                    if (regfile_rd2[0]){
-                        //its draw
-                        alu_out_sel = b10                //draw signal
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        regfile_ra2 = d15                         // temp reg 
+                        if (regfile_rd2[0]){                      // direct read in
+                            game_fsm.d = GameStates.STORE_ROW2_ROW3_1
+                        }
+                        else{
+                            if (increase_timer){                // 1s delay
+                                game_fsm.d = GameStates.STORE_ROW2_ROW3_1
+                            }
+                        }
+                    }
+                // obstacle move from row 2 to row 3
+                GameStates.STORE_ROW2_ROW3_1: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_ROW2_ROW3_1
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_ROW2_ROW3_1
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_ROW2_ROW3_1
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        alufn = b011010                             // A
+                        asel = b0000                                    
+                        bsel = b0000                                 
+                        regfile_we = 1 
+                        regfile_wa = d9                             // row 3 reg
+                        regfile_ra1 = d8                            // direct read (row 2 reg)
+                        regfile_ra2 = d9                            // direct read (row 3 reg)
+                        game_fsm.d = GameStates.STORE_ROW1_ROW2_1
+                    }
+                // obstacle move from row 1 to row 2
+                GameStates.STORE_ROW1_ROW2_1: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_ROW1_ROW2_1
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_ROW1_ROW2_1
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_ROW1_ROW2_1
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        alufn = b011010                             // A
+                        asel = b0000                                    
+                        bsel = b0000                                 
+                        regfile_we = 1 
+                        regfile_wa = d8                             // row 2 reg
+                        regfile_ra1 = d7                            // direct read (row 1 reg)
+                        regfile_ra2 = d8                            // direct read (row 2 reg)
+                        game_fsm.d = GameStates.STORE_RNG
+                    }
+                // intermediate dff store rng output
+                GameStates.STORE_RNG:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_RNG
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_RNG
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_RNG
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        store_rng.d = b1000 + generator.out           // store rng output + b1000 to be fed into asel mux in next state
+                        game_fsm.d = GameStates.STORE_RNG_ROW1
+                    } 
+                // row 1 receives randomly generated obstacle
+                GameStates.STORE_RNG_ROW1: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_RNG_ROW1
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_RNG_ROW1
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_RNG_ROW1
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        alufn = b011010                             // A  
+                        asel = store_rng.q                          // rng
+                        bsel = b0000                                 
+                        regfile_we = 1 
+                        regfile_wa = d7                             // row 1 reg
+                        regfile_ra2 = d7                            // direct read (row 1 reg)
+                        if(increase_timer) {                      // 1s delay
+                            game_fsm.d = GameStates.STORE_ROW3_ROW4_2
+                        }
+                    }
+                // obstacle move from row 3 to row 4
+                GameStates.STORE_ROW3_ROW4_2: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_ROW3_ROW4_2
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_ROW3_ROW4_2
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_ROW3_ROW4_2
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        alufn = b011010                             // A
+                        asel = b0000                                    
+                        bsel = b0000                                 
+                        regfile_we = 1 
+                        regfile_wa = d10                            // row 4 reg
+                        regfile_ra1 = d9                            // direct read (row 3 reg)
+                        regfile_ra2 = d10                           // direct read (row 4 reg)
+                        game_fsm.d = GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_2
+                    }
+                // check special timer to determine if in normal mode or power-up mode
+                GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_2:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_2
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_2
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_2
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        alufn = b110011                             // CMPEQ
+                        asel = b0010                                // constant 0
+                        bsel = b0000                                  
                         regfile_we = 1
-                        regfile_wa = d0          //P1 score reg
-                        game_fsm.d = GameStates.DRAW
+                        regfile_wa = d15                            // temp reg
+                        regfile_ra2 = d3                            // direct read (special timer reg)
+                        game_fsm.d = GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_2
                     }
-                    else{
-                        game_fsm.d = GameStates.CHECK_WINNER
+                // branch special timer
+                GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_2:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_2
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
                     }
-                
-                GameStates.DRAW:
-                    alu_out_sel = b10                //draw signal
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_2
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_2
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        regfile_ra2 = d15                           // temp reg 
+                        if (regfile_rd2[0]){                        // direct read in
+                            game_fsm.d = GameStates.STORE_ROW2_ROW3_2
+                        }
+                        else{
+                            if (increase_timer){                  // 1s delay
+                                game_fsm.d = GameStates.STORE_ROW2_ROW3_2
+                            }
+                        }
+                    }
+                // obstacle move from row 2 to row 3
+                GameStates.STORE_ROW2_ROW3_2: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_ROW2_ROW3_2
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_ROW2_ROW3_2
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_ROW2_ROW3_2
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        alufn = b011010                             // A
+                        asel = b0000                                    
+                        bsel = b0000                                 
+                        regfile_we = 1 
+                        regfile_wa = d9                             // row 3 reg
+                        regfile_ra1 = d8                            // direct read (row 2 reg)
+                        regfile_ra2 = d9                            // direct read (row 3 reg)
+                        game_fsm.d = GameStates.STORE_ROW1_ROW2_2
+                    }
+                // obstacle move from row 1 to row 2
+                GameStates.STORE_ROW1_ROW2_2: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_ROW1_ROW2_2
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_ROW1_ROW2_2
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_ROW1_ROW2_2
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        alufn = b011010                             // A
+                        asel = b0000                                    
+                        bsel = b0000                                 
+                        regfile_we = 1 
+                        regfile_wa = d8                             // row 2 reg
+                        regfile_ra1 = d7                            // direct read (row 1 reg)
+                        regfile_ra2 = d8                            // direct read (row 2 reg)
+                        game_fsm.d = GameStates.STORE_0_ROW1
+                    }
+                // row 1 receives 0 input to represent no obstacle
+                GameStates.STORE_0_ROW1: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_0_ROW1
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_0_ROW1
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_0_ROW1
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        alufn = b011010                             // A
+                        asel = b0010                                // constant 0                                  
+                        bsel = b0000                                 
+                        regfile_we = 1 
+                        regfile_wa = d7                             // row 1 reg
+                        regfile_ra2 = d7                            // direct read (row 1 reg)
+                        game_fsm.d = GameStates.ROW4_AND_PLAYER
+                    }
+                // store bitwise AND between row 4 and player for collision checking
+                GameStates.ROW4_AND_PLAYER: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.ROW4_AND_PLAYER
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.ROW4_AND_PLAYER
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.ROW4_AND_PLAYER
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        alufn = b011000                             // AND
+                        asel = b0000                                                                   
+                        bsel = b0000                                 
+                        regfile_we = 1 
+                        regfile_wa = d0                             // row4ANDplayer reg
+                        regfile_ra1 = d18                           // direct read (orplayer reg)
+                        regfile_ra2 = d10                           // direct read (row 4 reg)
+                        game_fsm.d = GameStates.CHECK_COLLISION
+                    }
+                // check for collision between row 4 obstacle and player
+                GameStates.CHECK_COLLISION:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.CHECK_COLLISION
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.CHECK_COLLISION
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.CHECK_COLLISION
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        alufn = b110011                             // CMPEQ                                
+                        asel = b0010                                // constant 0
+                        bsel = b0000                   
+                        regfile_we = 1
+                        regfile_wa = d12                            // temp reg
+                        regfile_ra2 = d0                            // direct read (row4ANDplayer reg)
+                        game_fsm.d = GameStates.BRANCH_COLLISION
+                    }
+                // branch collision state
+                GameStates.BRANCH_COLLISION:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.BRANCH_COLLISION
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.BRANCH_COLLISION
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.BRANCH_COLLISION
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        regfile_ra2 = d12                          // temp reg 
+                        if (regfile_rd2[0]){                       // direct read in
+                            game_fsm.d = GameStates.CHECK_SPECIAL_TIMER_REDUCE
+                        }
+                        else{
+                            game_fsm.d = GameStates.PLAYER_LOSE
+                        }
+                    }
+                // check special timer if it is currently in power-up state or not to reduce special timer by 1 for every obstacle dodged
+                GameStates.CHECK_SPECIAL_TIMER_REDUCE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.CHECK_SPECIAL_TIMER_REDUCE
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.CHECK_SPECIAL_TIMER_REDUCE
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.CHECK_SPECIAL_TIMER_REDUCE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        alufn = b110011                             // CMPEQ
+                        asel = b0010                                // constant 0
+                        bsel = b0000                                  
+                        regfile_we = 1
+                        regfile_wa = d15                            // temp reg
+                        regfile_ra2 = d3                            // direct read (special timer reg)
+                        game_fsm.d = GameStates.BRANCH_SPECIAL_TIMER_REDUCE
+                    }
+                // branch special timer
+                GameStates.BRANCH_SPECIAL_TIMER_REDUCE: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.BRANCH_SPECIAL_TIMER_REDUCE
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.BRANCH_SPECIAL_TIMER_REDUCE
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.BRANCH_SPECIAL_TIMER_REDUCE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        regfile_ra2 = d15                          // temp reg 
+                        if (regfile_rd2[0]){                       // direct read in
+                            game_fsm.d = GameStates.CHECK_ROW4_0
+                        }
+                        else{
+                            game_fsm.d = GameStates.DECREASE_SPECIAL_TIMER
+                        }
+                    }
+                // decrease special timer by 1 for every obstacle dodged
+                GameStates.DECREASE_SPECIAL_TIMER:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.DECREASE_SPECIAL_TIMER
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.DECREASE_SPECIAL_TIMER
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.DECREASE_SPECIAL_TIMER
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        alufn = b000001                             // SUB
+                        asel = b0000 
+                        bsel = b0001                                // constant 1
+                        regfile_we = 1 
+                        regfile_wa = d3                             // special timer reg
+                        regfile_ra1 = d3                            // direct read (special timer reg)
+                        game_fsm.d = GameStates.CHECK_ROW4_0
+                    }
+                // check if row 4 have obstacle or not for score addition
+                GameStates.CHECK_ROW4_0:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.CHECK_ROW4_0
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.CHECK_ROW4_0
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.CHECK_ROW4_0
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        alufn = b110011                             // CMPEQ
+                        asel = b0010                                // constant 0
+                        bsel = b0000                                  
+                        regfile_we = 1
+                        regfile_wa = d11                            // temp reg
+                        regfile_ra2 = d10                           // direct read (row 4 reg)
+                        game_fsm.d = GameStates.BRANCH_ROW4_0
+                    }
+                // branch row 4 obstacle check for score addition
+                GameStates.BRANCH_ROW4_0:  
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.BRANCH_ROW4_0
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.BRANCH_ROW4_0
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.BRANCH_ROW4_0
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        regfile_ra2 = d11                          // temp reg 
+                        if (regfile_rd2[0]){                       // direct read in
+                            game_fsm.d = GameStates.IDLE
+                        }
+                        else{
+                            game_fsm.d = GameStates.INCREASE_SCORE
+                        }
+                    }
+                // increase score by 1 for each obstacle dodged
+                GameStates.INCREASE_SCORE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.INCREASE_SCORE
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.INCREASE_SCORE
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.INCREASE_SCORE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        alufn = b000000                             // ADD
+                        asel = b0000
+                        bsel = b0001                                // constant 1
+                        regfile_we = 1
+                        regfile_wa = d1                             // score reg
+                        regfile_ra1 = d1                            // direct read (score reg)
+                        game_fsm.d = GameStates.DIV_SCORE
+                    }
+                // allow for power-up to recharge every 8 obstacle dodged through dividing score by 8
+                GameStates.DIV_SCORE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.DIV_SCORE
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.DIV_SCORE
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.DIV_SCORE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        alufn = b000011                             // DIV
+                        asel = b0000
+                        bsel = b0010                                // constant 8
+                        regfile_we = 1
+                        regfile_wa = d17                            // divscore reg
+                        regfile_ra1 = d1                            // direct read (score reg)
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_INDICATION
+                    }
+                // show availability of power-up by comparing if special counter is less than score / 8 or not
+                GameStates.CHECK_SPECIAL_COUNTER_INDICATION:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.CHECK_SPECIAL_COUNTER_INDICATION
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.CHECK_SPECIAL_COUNTER_INDICATION
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.CHECK_SPECIAL_COUNTER_INDICATION
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        alufn = b110101                             // CMPLT                                
+                        asel = b0000   
+                        bsel = b0000                           
+                        regfile_we = 1
+                        regfile_wa = d16                            // temp reg
+                        regfile_ra1 = d2                            // direct read (special counter reg)
+                        regfile_ra2 = d17                           // direct read (divscore reg)
+                        game_fsm.d = GameStates.CHECK_SCORE_9999
+                    }
+                // check if score is 9999 for player to win
+                GameStates.CHECK_SCORE_9999:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_RNG_ROW1
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_RNG_ROW1
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_RNG_ROW1
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        alufn = b110011                             // CMPEQ
+                        asel = b0111                                // constant 9999
+                        bsel = b0000                                  
+                        regfile_we = 1
+                        regfile_wa = d23                            // temp reg
+                        regfile_ra2 = d1                            // direct read (score reg)
+                        game_fsm.d = GameStates.BRANCH_SCORE_9999
+                    }
+                // branch to either player win or back to idle
+                GameStates.BRANCH_SCORE_9999:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_RNG_ROW1
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_RNG_ROW1
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_RNG_ROW1
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
+                    }
+                    else {
+                        regfile_ra2 = d23                          // temp reg 
+                        if (regfile_rd2[0]){                       // direct read in
+                            game_fsm.d = GameStates.PLAYER_WIN
+                        }
+                        else{
+                            game_fsm.d = GameStates.IDLE
+                        }
+                    }
+                // light up all player LEDs if player wins
+                GameStates.PLAYER_WIN:
+                    alufn = b011010                             // A
+                    asel = b0101                                // constant 511                                  
+                    bsel = b0000                                 
                     regfile_we = 1 
-                    regfile_wa = d1          //P2 score reg
-                    game_fsm.d = GameStates.GAMEOVER  
-                
-                GameStates.CHECK_WINNER:
-                    alufn = b110101                 //CMPLT
-                    regfile_ra1 = d0  //P1 score reg 
-                    regfile_ra2 = d1  //P2 score reg
-                    asel = b00
-                    bsel = b00
-                    regfile_we = 1
-                    regfile_wa = d6         //temp reg
-                    game_fsm.d = GameStates.BRANCH_WINNER
-                
-                GameStates.BRANCH_WINNER:
-                    regfile_ra2 = d6 //temp reg
-                    if (regfile_rd2[0]){
-                        //P2 Wins
-                        game_fsm.d = GameStates.P2WINS 
-                    }
-                    else{
-                        //P1 Wins
-                        game_fsm.d = GameStates.P1WINS 
-                    }
-                
-                
-                GameStates.P2WINS:
-                    regfile_we = 1
-                    regfile_wa = d1     //P2 score reg
-                    alu_out_sel = b01           //P2 winning signal
-                    game_fsm.d = GameStates.P1LOSE 
-                
-                GameStates.P1WINS:
-                    regfile_we = 1
-                    regfile_wa = d0     //P1 score reg
-                    alu_out_sel = b01           //P1 winning signal
-                    game_fsm.d = GameStates.P2LOSE 
-                
-                GameStates.P1LOSE:
-                    regfile_we = 1
-                    regfile_wa = d0     //P1 score reg
-                    alu_out_sel = b11           //P1 losing signal
-                    game_fsm.d = GameStates.GAMEOVER 
-                
-                GameStates.P2LOSE:
-                    regfile_we = 1
-                    regfile_wa = d1     //P2 score reg
-                    alu_out_sel = b11           //P2 losing signal
-                    game_fsm.d = GameStates.GAMEOVER 
-                
-                
-                GameStates.GAMEOVER:
-                    game_fsm.d = GameStates.GAMEOVER           
-                
+                    regfile_wa = d18                            // orplayer reg
+                    regfile_ra2 = d18                           // direct read (orplayer reg)
+                    game_fsm.d = GameStates.ROW1_WIN
+                // off obstacle LEDs if player wins
+                GameStates.ROW1_WIN:
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0                                  
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d7                             // row 1 reg
+                    regfile_ra2 = d7                            // direct read (row 1 reg)
+                    game_fsm.d = GameStates.ROW2_WIN
+                // off obstacle LEDs if player wins
+                GameStates.ROW2_WIN:
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0                                  
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d8                             // row 2 reg
+                    regfile_ra2 = d8                            // direct read (row 2 reg)
+                    game_fsm.d = GameStates.ROW3_WIN
+                // off obstacle LEDs if player wins
+                GameStates.ROW3_WIN:
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0                                 
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d9                             // row 3 reg
+                    regfile_ra2 = d9                            // direct read (row 3 reg)
+                    game_fsm.d = GameStates.GAMEOVER_WIN
+                // Player Win Gameover
+                GameStates.GAMEOVER_WIN:
+                    game_fsm.d = GameStates.GAMEOVER_WIN
+                // off all player LEDs if player loses
+                GameStates.PLAYER_LOSE:
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0                                  
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d18                            // orplayer reg
+                    regfile_ra2 = d18                           // direct read (orplayer reg)
+                    game_fsm.d = GameStates.ROW1_LOSE
+                // light up obstacle LEDs if player loses
+                GameStates.ROW1_LOSE:
+                    alufn = b011010                             // A
+                    asel = b0101                                // constant 511                                  
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d7                             // row 1 reg
+                    regfile_ra2 = d7                            // direct read (row 1 reg)
+                    game_fsm.d = GameStates.ROW2_LOSE
+                // light up obstacle LEDs if player loses
+                GameStates.ROW2_LOSE:
+                    alufn = b011010                             // A
+                    asel = b0101                                // constant 511                                  
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d8                             // row 2 reg
+                    regfile_ra2 = d8                            // direct read (row 2 reg)
+                    game_fsm.d = GameStates.ROW3_LOSE
+                // light up obstacle LEDs if player loses
+                GameStates.ROW3_LOSE:
+                    alufn = b011010                             // A
+                    asel = b0101                                // constant 511                                  
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d9                             // row 3 reg
+                    regfile_ra2 = d9                            // direct read (row 3 reg)
+                    game_fsm.d = GameStates.GAMEOVER_LOSE
+                // Player Lose Gameover
+                GameStates.GAMEOVER_LOSE:
+                    game_fsm.d = GameStates.GAMEOVER_LOSE              
+                // IDLE mode to start off various states
                 GameStates.IDLE:
-                    if (decrease_timer){
-                        game_fsm.d = GameStates.CHECK_GAMETIMER
+                    // 2s delay and buttons p1, p2, p3 not pressed
+                    if (increase_timer && ~p1_button && ~p2_button && ~p3_button){
+                        game_fsm.d = GameStates.STORE_ROW3_ROW4_1
                     }
-                    else if (increase_counter && ~p1_button && ~p2_button){
-                        game_fsm.d = GameStates.INC_COUNTER
+                    // only p1 pressed
+                    else if (p1_button && ~p2_button && ~p3_button){
+                        store_statep1.d = GameStates.IDLE
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P1
                     }
-                    else if (p1_button && ~p2_button){
-                        game_fsm.d = GameStates.CHECK_P1BUTTONCOUNT
+                    // only p2 pressed
+                    else if (~p1_button && p2_button && ~p3_button){
+                        store_statep2.d = GameStates.IDLE
+                        game_fsm.d = GameStates.CHECK_SHIFT_COUNTER_P2
                     }
-                    else if (p2_button && ~p1_button){
-                        game_fsm.d = GameStates.CHECK_P2BUTTONCOUNT
+                    // only p3 pressed
+                    else if (~p1_button && ~p2_button && p3_button){
+                        store_statep3.d = GameStates.IDLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER
+                    }
+                    // only p4 pressed
+                    else if (~p1_button && ~p2_button && ~p3_button && p4_button){
+                        game_fsm.d = GameStates.START_SET_P1_DOUBLE
                     }
                     else{
                         game_fsm.d = GameStates.IDLE
                     }
-                
-                
+                // set p1 reg for double player mode
+                GameStates.START_SET_P1_DOUBLE: 
+                    alufn = b011100                             // B
+                    asel = b0000                                
+                    bsel = b0100                                // constant 32
+                    regfile_we = 1 
+                    regfile_wa = d19                            // p1 reg
+                    regfile_ra1 = d19                           // direct read (p1 reg)
+                    game_fsm.d = GameStates.START_SET_P2_DOUBLE
+                // set p2 reg for double player mode
+                GameStates.START_SET_P2_DOUBLE: 
+                    alufn = b011100                             // B
+                    asel = b0000                                
+                    bsel = b0010                                // constant 8
+                    regfile_we = 1 
+                    regfile_wa = d20                            // p2 reg
+                    regfile_ra1 = d20                           // direct read (p2 reg)
+                    game_fsm.d = GameStates.START_SET_ORPLAYER_DOUBLE
+                // to show both p1 and p2 bits
+                GameStates.START_SET_ORPLAYER_DOUBLE: 
+                    alufn = b011110                             // OR
+                    asel = b0000                                                          
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d18                            // orplayer reg
+                    regfile_ra1 = d19                           // direct read (p1 reg)
+                    regfile_ra2 = d20                           // direct read (p2 reg)
+                    game_fsm.d = GameStates.RESET_SCORE_DOUBLE                
+                // reset score from single player mode
+                GameStates.RESET_SCORE_DOUBLE: 
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0
+                    bsel = b0000                                
+                    regfile_we = 1 
+                    regfile_wa = d1                             // score reg
+                    regfile_ra2 = d1                            // direct read (score reg)
+                    game_fsm.d = GameStates.RESET_SPECIAL_COUNTER_DOUBLE
+                // reset special counter from single player mode
+                GameStates.RESET_SPECIAL_COUNTER_DOUBLE: 
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0
+                    bsel = b0000                                
+                    regfile_we = 1 
+                    regfile_wa = d2                             // special counter reg
+                    regfile_ra2 = d2                            // direct read (special counter reg)
+                    game_fsm.d = GameStates.RESET_SPECIAL_TIMER_DOUBLE
+                // reset special timer from single player mode
+                GameStates.RESET_SPECIAL_TIMER_DOUBLE: 
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0
+                    bsel = b0000                                
+                    regfile_we = 1 
+                    regfile_wa = d3                             // special timer reg
+                    regfile_ra2 = d3                            // direct read (special timer reg)
+                    game_fsm.d = GameStates.RESET_TEMP6_DOUBLE
+                // reset temp reg from single player mode
+                GameStates.RESET_TEMP6_DOUBLE: 
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0
+                    bsel = b0000                                
+                    regfile_we = 1 
+                    regfile_wa = d5                             // temp reg
+                    regfile_ra2 = d5                            // direct read (temp reg)
+                    game_fsm.d = GameStates.RESET_ROW1_DOUBLE
+                // reset row 1 reg from single player mode
+                GameStates.RESET_ROW1_DOUBLE: 
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0
+                    bsel = b0000                                
+                    regfile_we = 1 
+                    regfile_wa = d7                             // row 1 reg
+                    regfile_ra2 = d7                            // direct read (row 1 reg)
+                    game_fsm.d = GameStates.RESET_ROW2_DOUBLE
+                // reset row 2 reg from single player mode
+                GameStates.RESET_ROW2_DOUBLE: 
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0
+                    bsel = b0000                                
+                    regfile_we = 1 
+                    regfile_wa = d8                             // row 2 reg
+                    regfile_ra2 = d8                            // direct read (row 2 reg)
+                    game_fsm.d = GameStates.RESET_ROW3_DOUBLE
+                // reset row 3 reg from single player mode
+                GameStates.RESET_ROW3_DOUBLE: 
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0
+                    bsel = b0000                                
+                    regfile_we = 1 
+                    regfile_wa = d9                             // row 3 reg
+                    regfile_ra2 = d9                            // direct read (row 3 reg)
+                    game_fsm.d = GameStates.RESET_ROW4_DOUBLE
+                // reset row 4 reg from single player mode
+                GameStates.RESET_ROW4_DOUBLE: 
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0
+                    bsel = b0000                                
+                    regfile_we = 1 
+                    regfile_wa = d10                            // row 4 reg
+                    regfile_ra2 = d10                           // direct read (row 4 reg)
+                    game_fsm.d = GameStates.RESET_TEMP1_DOUBLE
+                // reset temp reg from single player mode
+                GameStates.RESET_TEMP1_DOUBLE: 
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0
+                    bsel = b0000                                
+                    regfile_we = 1 
+                    regfile_wa = d11                            // temp reg
+                    regfile_ra2 = d11                           // direct read (temp reg)
+                    game_fsm.d = GameStates.RESET_TEMP2_DOUBLE
+                // reset temp reg from single player mode
+                GameStates.RESET_TEMP2_DOUBLE: 
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0
+                    bsel = b0000                                
+                    regfile_we = 1 
+                    regfile_wa = d12                            // temp reg
+                    regfile_ra2 = d12                           // direct read (temp reg)
+                    game_fsm.d = GameStates.RESET_TEMP3_DOUBLE
+                // reset temp reg from single player mode
+                GameStates.RESET_TEMP3_DOUBLE: 
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0
+                    bsel = b0000                                
+                    regfile_we = 1 
+                    regfile_wa = d13                            // temp reg
+                    regfile_ra2 = d13                           // direct read (temp reg)
+                    game_fsm.d = GameStates.RESET_TEMP4_DOUBLE
+                // reset temp reg from single player mode
+                GameStates.RESET_TEMP4_DOUBLE: 
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0
+                    bsel = b0000                                
+                    regfile_we = 1 
+                    regfile_wa = d14                            // temp reg
+                    regfile_ra2 = d14                           // direct read (temp reg)
+                    game_fsm.d = GameStates.RESET_TEMP5_DOUBLE
+                // reset temp reg from single player mode
+                GameStates.RESET_TEMP5_DOUBLE: 
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0
+                    bsel = b0000                                
+                    regfile_we = 1 
+                    regfile_wa = d15                            // temp reg
+                    regfile_ra2 = d15                           // direct read (temp reg)
+                    game_fsm.d = GameStates.RESET_TEMP7_DOUBLE
+                // reset temp reg from single player mode
+                GameStates.RESET_TEMP7_DOUBLE: 
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0
+                    bsel = b0000                                
+                    regfile_we = 1 
+                    regfile_wa = d16                            // temp reg
+                    regfile_ra2 = d16                           // direct read (temp reg)
+                    game_fsm.d = GameStates.RESET_DIVSCORE_DOUBLE
+                // reset divscore reg from single player mode
+                GameStates.RESET_DIVSCORE_DOUBLE: 
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0
+                    bsel = b0000                                
+                    regfile_we = 1 
+                    regfile_wa = d17                            // divscore reg
+                    regfile_ra2 = d17                           // direct read (divscore reg)
+                    game_fsm.d = GameStates.RESET_TEMP8_DOUBLE
+                // reset temp reg from single player mode
+                GameStates.RESET_TEMP8_DOUBLE: 
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0
+                    bsel = b0000                                
+                    regfile_we = 1 
+                    regfile_wa = d23                            // divscore reg
+                    regfile_ra2 = d23                           // direct read (divscore reg)
+                    game_fsm.d = GameStates.IDLE_DOUBLE           
+                // check p1 shift counter to check if p1 can shift left or not when p1 is pressed
+                GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE:
+                    alufn = b110011                             // CMPEQ
+                    asel = b0010                                // constant 0
+                    bsel = b0000                                  
+                    regfile_we = 1
+                    regfile_wa = d13                            // temp reg
+                    regfile_ra2 = d21                           // direct read (p1 shift counter reg)
+                    game_fsm.d = GameStates.BRANCH_P1BUTTON_DOUBLE
+                // branch p1 button to shift p1 to the left if shift counter is not 0, otherwise shift p1 to rightmost position
+                GameStates.BRANCH_P1BUTTON_DOUBLE:
+                    regfile_ra2 = d13                           // temp reg 
+                    if (regfile_rd2[0]){                        // direct read in
+                        game_fsm.d = GameStates.SET_P1_DOUBLE
+                    }
+                    else{
+                        game_fsm.d = GameStates.SHIFT_LEFT_DOUBLE
+                    }
+                // set p1 to rightmost position
+                GameStates.SET_P1_DOUBLE: 
+                    alufn = b011100                             // B
+                    asel = b0000                                                           
+                    bsel = b0001                                // constant 1 
+                    regfile_we = 1 
+                    regfile_wa = d19                            // p1 reg
+                    regfile_ra1 = d19                           // direct read (p1 reg)
+                    game_fsm.d = GameStates.PLAYEROR_SET_P1_DOUBLE
+                // update orplayer reg after shifting p1
+                GameStates.PLAYEROR_SET_P1_DOUBLE: 
+                    alufn = b011110                             // OR
+                    asel = b0000                                                           
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d18                            // orplayer reg
+                    regfile_ra1 = d19                           // direct read (p1 reg)
+                    regfile_ra2 = d20                           // direct read (p2 reg)
+                    game_fsm.d = GameStates.SET_P1_SHIFT_COUNTER_DOUBLE
+                // set p1 shift counter to 8 to represent p1 is at rightmost position
+                GameStates.SET_P1_SHIFT_COUNTER_DOUBLE: 
+                    alufn = b011100                             // B
+                    asel = b0000                                                           
+                    bsel = b0010                                // constant 8 
+                    regfile_we = 1 
+                    regfile_wa = d21                            // p1 shift counter reg
+                    regfile_ra1 = d21                           // direct read (p1 shift counter reg)
+                    game_fsm.d = store_statep1.q
+                // p1 shift left
+                GameStates.SHIFT_LEFT_DOUBLE:
+                    alufn = b100000                             // SHL
+                    asel = b0000                     
+                    bsel = b0001                                // constant 1          
+                    regfile_we = 1
+                    regfile_wa = d19                            // p1 reg
+                    regfile_ra1 = d19                           // direct read (p1 reg)
+                    game_fsm.d = GameStates.PLAYEROR_P1_DOUBLE
+                // update orplayer reg after p1 shift left
+                GameStates.PLAYEROR_P1_DOUBLE: 
+                    alufn = b011110                             // OR
+                    asel = b0000                                                          
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d18                            // orplayer reg
+                    regfile_ra1 = d19                           // direct read (p1 reg)
+                    regfile_ra2 = d20                           // direct read (p2 reg)
+                    game_fsm.d = GameStates.DECREASE_P1_SHIFT_COUNTER_DOUBLE
+                    
+                // decrease p1 shift counter to signify p1 shifting left
+                GameStates.DECREASE_P1_SHIFT_COUNTER_DOUBLE:
+                    alufn = b000001                             // SUB
+                    asel = b0000                                       
+                    bsel = b0001                                // constant 1          
+                    regfile_we = 1
+                    regfile_wa = d21                            // p1 shift counter reg
+                    regfile_ra1 = d21                           // direct read (p1 shift counter reg)
+                    game_fsm.d = store_statep1.q
+               // check p2 shift counter to check if p2 can shift right or not when p2 is pressed
+                GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE:
+                    alufn = b110011                             // CMPEQ
+                    asel = b0000  
+                    bsel = b0010                                // constant 8                          
+                    regfile_we = 1
+                    regfile_wa = d14                            // temp reg
+                    regfile_ra1 = d22                           // direct read (p2 shift counter reg)
+                    game_fsm.d = GameStates.BRANCH_P2BUTTON_DOUBLE
+                // branch p2 button to shift p2 to the right if shift counter is not 8, otherwise shift p2 to leftmost position
+                GameStates.BRANCH_P2BUTTON_DOUBLE:
+                    regfile_ra2 = d14                           // temp reg 
+                    if (regfile_rd2[0]){                        // direct read in
+                        game_fsm.d = GameStates.SET_P2_DOUBLE
+                    }
+                    else{
+                        game_fsm.d = GameStates.SHIFT_RIGHT_DOUBLE
+                    }
+                // set p2 to leftmost position
+                GameStates.SET_P2_DOUBLE: 
+                    alufn = b011100                             // B
+                    asel = b0000                                                           
+                    bsel = b0101                                // constant 256 
+                    regfile_we = 1 
+                    regfile_wa = d20                            // p2 reg
+                    regfile_ra1 = d20                           // direct read (p2 reg)
+                    game_fsm.d = GameStates.PLAYEROR_SET_P2_DOUBLE 
+                // update orplayer reg after p2 shift
+                GameStates.PLAYEROR_SET_P2_DOUBLE: 
+                    alufn = b011110                             // OR
+                    asel = b0000                                                            
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d18                            // orplayer reg
+                    regfile_ra1 = d19                           // direct read (p1 reg)
+                    regfile_ra2 = d20                           // direct read (p2 reg)
+                    game_fsm.d = GameStates.SET_P2_SHIFT_COUNTER_DOUBLE
+                // set p2 shift counter reg to 0 to represent p2 is at leftmost position
+                GameStates.SET_P2_SHIFT_COUNTER_DOUBLE: 
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0                           
+                    bsel = b0000                                
+                    regfile_we = 1 
+                    regfile_wa = d22                            // p2 shift counter reg
+                    regfile_ra2 = d22                           // direct read (p2 shift counter reg)
+                    game_fsm.d = store_statep2.q
+                // p2 shift right
+                GameStates.SHIFT_RIGHT_DOUBLE:
+                    alufn = b100001                             // SHR
+                    asel = b0000
+                    bsel = b0001                                // constant 1                            
+                    regfile_we = 1
+                    regfile_wa = d20                             // p2 reg
+                    regfile_ra1 = d20                            // direct read (p2 reg)
+                    game_fsm.d = GameStates.PLAYEROR_P2_DOUBLE
+                // update irplayer reg after p2 shift right
+                GameStates.PLAYEROR_P2_DOUBLE: 
+                    alufn = b011110                             // OR
+                    asel = b0000                                                           
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d18                            // torplayer reg
+                    regfile_ra1 = d19                           // direct read (p1 reg)
+                    regfile_ra2 = d20                           // direct read (p2 reg)
+                    game_fsm.d = GameStates.INCREASE_P2_SHIFT_COUNTER_DOUBLE
+                // increase p2 shift counter to signify p2 shifting right
+                GameStates.INCREASE_P2_SHIFT_COUNTER_DOUBLE:
+                    alufn = b000000                             // ADD
+                    asel = b0000
+                    bsel = b0001                                // constant 1                            
+                    regfile_we = 1
+                    regfile_wa = d22                            // p2 shift counter reg
+                    regfile_ra1 = d22                           // direct read (p2 shift counter reg)
+                    game_fsm.d = store_statep2.q
+                // check if special counter is less than score / 8 or not to determine if power-up can be activated when p3 is pressed
+                GameStates.CHECK_SPECIAL_COUNTER_DOUBLE:
+                    alufn = b110101                             // CMPLT
+                    asel = b0000                                  
+                    bsel = b0000                                  
+                    regfile_we = 1
+                    regfile_wa = d5                             // temp reg
+                    regfile_ra1 = d2                            // direct read (special counter reg)
+                    regfile_ra2 = d17                           // direct read (divscore reg)
+                    game_fsm.d = GameStates.BRANCH_P3BUTTON_DOUBLE
+                // branch p2 button to activate power-up mode
+                GameStates.BRANCH_P3BUTTON_DOUBLE:
+                    regfile_ra2 = d5                            // temp reg 
+                    if (regfile_rd2[0]){                        // direct read in
+                        game_fsm.d = GameStates.INCREASE_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else{
+                        game_fsm.d = store_statep3.q
+                    }
+                // increase special counter to signify power-up use increase by 1
+                GameStates.INCREASE_SPECIAL_COUNTER_DOUBLE:
+                    alufn = b000000                             // ADD
+                    asel = b0000
+                    bsel = b0001                                // constant 1
+                    regfile_we = 1                           
+                    regfile_wa = d2                             // special counter reg
+                    regfile_ra1 = d2                            // direct read (special counter reg) 
+                    game_fsm.d =  GameStates.SET_SPECIAL_TIMER_DOUBLE
+                // set timer for power-up to last for at most 3 obstacles
+                GameStates.SET_SPECIAL_TIMER_DOUBLE: 
+                    alufn = b011100                             // B
+                    asel = b0000                                    
+                    bsel = b0011                                // constant 3
+                    regfile_we = 1 
+                    regfile_wa = d3                             // special timer reg
+                    regfile_ra1 = d3                            // direct read (special timer reg)
+                    game_fsm.d = store_statep3.q
+                // obstacle move from row 3 to row 4
+                GameStates.STORE_ROW3_ROW4_1_DOUBLE: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_ROW3_ROW4_1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_ROW3_ROW4_1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_ROW3_ROW4_1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b011010                          // A
+                        asel = b0000                                    
+                        bsel = b0000                                 
+                        regfile_we = 1 
+                        regfile_wa = d10                         // row 4 reg
+                        regfile_ra1 = d9                         // direct read (row 3 reg)
+                        regfile_ra2 = d10                        // direct read (row 4 reg)
+                        game_fsm.d = GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_1_DOUBLE
+                    }
+                // check special timer to determine if in normal mode or power-up mode
+                GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_1_DOUBLE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b110011                          // CMPEQ
+                        asel = b0010                             // constant 0
+                        bsel = b0000                                  
+                        regfile_we = 1
+                        regfile_wa = d15                         // temp reg
+                        regfile_ra2 = d3                         // direct read (special timer reg)
+                        game_fsm.d = GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_1_DOUBLE
+                    }
+                // branch special timer
+                GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_1_DOUBLE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        regfile_ra2 = d15                         // temp reg 
+                        if (regfile_rd2[0]){                      // direct read in
+                            game_fsm.d = GameStates.STORE_ROW2_ROW3_1_DOUBLE
+                        }
+                        else{
+                            if (increase_timerx2){                // 2s delay
+                                game_fsm.d = GameStates.STORE_ROW2_ROW3_1_DOUBLE
+                            }
+                        }
+                    }
+                // obstacle move from row 2 to row 3
+                GameStates.STORE_ROW2_ROW3_1_DOUBLE: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_ROW2_ROW3_1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_ROW2_ROW3_1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_ROW2_ROW3_1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b011010                             // A
+                        asel = b0000                                    
+                        bsel = b0000                                 
+                        regfile_we = 1 
+                        regfile_wa = d9                             // row 3 reg
+                        regfile_ra1 = d8                            // direct read (row 2 reg)
+                        regfile_ra2 = d9                            // direct read (row 3 reg)
+                        game_fsm.d = GameStates.STORE_ROW1_ROW2_1_DOUBLE
+                    }
+                // obstacle move from row 1 to row 2
+                GameStates.STORE_ROW1_ROW2_1_DOUBLE: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_ROW1_ROW2_1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_ROW1_ROW2_1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_ROW1_ROW2_1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b011010                             // A
+                        asel = b0000                                    
+                        bsel = b0000                                 
+                        regfile_we = 1 
+                        regfile_wa = d8                             // row 2 reg
+                        regfile_ra1 = d7                            // direct read (row 1 reg)
+                        regfile_ra2 = d8                            // direct read (row 2 reg)
+                        game_fsm.d = GameStates.STORE_RNG_DOUBLE
+                    }
+                // intermediate dff store rng output
+                GameStates.STORE_RNG_DOUBLE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_RNG_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_RNG_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_RNG_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        store_rng.d = b1000 + generator.out           // store rng output + b1000 to be fed into bsel mux in next state
+                        game_fsm.d = GameStates.STORE_RNG_ROW1_DOUBLE
+                    } 
+                // row 1 receives randomly generated obstacle
+                GameStates.STORE_RNG_ROW1_DOUBLE: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_RNG_ROW1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_RNG_ROW1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_RNG_ROW1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b011100                             // B  
+                        asel = b0000
+                        bsel = store_rng.q                          // rng                             
+                        regfile_we = 1 
+                        regfile_wa = d7                             // row 1 reg
+                        regfile_ra2 = d7                            // direct read (row 1 reg)
+                        if(increase_timerx2) {                      // 2s delay
+                            game_fsm.d = GameStates.STORE_ROW3_ROW4_2_DOUBLE
+                        }
+                    }
+                // obstacle move from row 3 to row 4
+                GameStates.STORE_ROW3_ROW4_2_DOUBLE: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_ROW3_ROW4_2_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_ROW3_ROW4_2_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_ROW3_ROW4_2_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b011010                             // A
+                        asel = b0000                                    
+                        bsel = b0000                                 
+                        regfile_we = 1 
+                        regfile_wa = d10                            // row 4 reg
+                        regfile_ra1 = d9                            // direct read (row 3 reg)
+                        regfile_ra2 = d10                           // direct read (row 4 reg)
+                        game_fsm.d = GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_2_DOUBLE
+                    }
+                // check special timer to determine if in normal mode or power-up mode
+                GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_2_DOUBLE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_2_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_2_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.CHECK_SPECIAL_TIMER_OBSTACLE_2_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b110011                             // CMPEQ
+                        asel = b0010                                // constant 0
+                        bsel = b0000                                  
+                        regfile_we = 1
+                        regfile_wa = d15                            // temp reg
+                        regfile_ra2 = d3                            // direct read (special timer reg)
+                        game_fsm.d = GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_2_DOUBLE
+                    }
+                // branch special timer
+                GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_2_DOUBLE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_2_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_2_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.BRANCH_SPECIAL_TIMER_OBSTACLE_2_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        regfile_ra2 = d15                           // temp reg 
+                        if (regfile_rd2[0]){                        // direct read in
+                            game_fsm.d = GameStates.STORE_ROW2_ROW3_2_DOUBLE
+                        }
+                        else{
+                            if (increase_timerx2){                  // 2s delay
+                                game_fsm.d = GameStates.STORE_ROW2_ROW3_2_DOUBLE
+                            }
+                        }
+                    }
+                // obstacle move from row 2 to row 3
+                GameStates.STORE_ROW2_ROW3_2_DOUBLE: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_ROW2_ROW3_2_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_ROW2_ROW3_2_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_ROW2_ROW3_2_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b011010                             // A
+                        asel = b0000                                    
+                        bsel = b0000                                 
+                        regfile_we = 1 
+                        regfile_wa = d9                             // row 3 reg
+                        regfile_ra1 = d8                            // direct read (row 2 reg)
+                        regfile_ra2 = d9                            // direct read (row 3 reg)
+                        game_fsm.d = GameStates.STORE_ROW1_ROW2_2_DOUBLE
+                    }
+                // obstacle move from row 1 to row 2
+                GameStates.STORE_ROW1_ROW2_2_DOUBLE: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_ROW1_ROW2_2_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_ROW1_ROW2_2_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_ROW1_ROW2_2_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b011010                             // A
+                        asel = b0000                                    
+                        bsel = b0000                                 
+                        regfile_we = 1 
+                        regfile_wa = d8                             // row 2 reg
+                        regfile_ra1 = d7                            // direct read (row 1 reg)
+                        regfile_ra2 = d8                            // direct read (row 2 reg)
+                        game_fsm.d = GameStates.STORE_0_ROW1_DOUBLE
+                    }
+                // row 1 receives input 0 to represent no obstacle
+                GameStates.STORE_0_ROW1_DOUBLE: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.STORE_0_ROW1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.STORE_0_ROW1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.STORE_0_ROW1_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b011010                             // A
+                        asel = b0010                                // constant 0                                  
+                        bsel = b0000                                 
+                        regfile_we = 1 
+                        regfile_wa = d7                             // row 1 reg
+                        regfile_ra2 = d7                            // direct read (row 1 reg)
+                        game_fsm.d = GameStates.ROW4_XOR_PLAYER_DOUBLE
+                    }
+                // store bitwise XOR between row 4 and player for collision checking
+                GameStates.ROW4_XOR_PLAYER_DOUBLE: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.ROW4_XOR_PLAYER_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.ROW4_XOR_PLAYER_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.ROW4_XOR_PLAYER_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b010110                             // XOR
+                        asel = b0000                                                                   
+                        bsel = b0000                                 
+                        regfile_we = 1 
+                        regfile_wa = d24                            // row4XORplayer reg
+                        regfile_ra1 = d18                           // direct read (orplayer reg)
+                        regfile_ra2 = d10                           // direct read (row 4 reg)
+                        game_fsm.d = GameStates.CHECK_COLLISION_DOUBLE
+                    }
+                // check for collision between row 4 obstacle and player
+                GameStates.CHECK_COLLISION_DOUBLE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.CHECK_COLLISION_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.CHECK_COLLISION_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.CHECK_COLLISION_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b110011                             // CMPEQ                                
+                        asel = b0101                                // constant 511
+                        bsel = b0000                   
+                        regfile_we = 1
+                        regfile_wa = d12                            // temp reg
+                        regfile_ra2 = d24                           // direct read (row4XORplayer reg)
+                        game_fsm.d = GameStates.BRANCH_COLLISION_DOUBLE
+                    }
+                // branch collision state
+                GameStates.BRANCH_COLLISION_DOUBLE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.BRANCH_COLLISION_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.BRANCH_COLLISION_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.BRANCH_COLLISION_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        regfile_ra2 = d12                          // temp reg 
+                        if (regfile_rd2[0]){                       // direct read in
+                            game_fsm.d = GameStates.CHECK_SPECIAL_TIMER_REDUCE_DOUBLE
+                        }
+                        else{
+                            game_fsm.d = GameStates.CHECK_ROW4_0_COLLISION_DOUBLE
+                        }
+                    }
+                // check for row 4 not equals 0
+                GameStates.CHECK_ROW4_0_COLLISION_DOUBLE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.CHECK_ROW4_0_COLLISION_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.CHECK_ROW4_0_COLLISION_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.CHECK_ROW4_0_COLLISION_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b110011                             // CMPEQ                                
+                        asel = b0010                                // constant 0
+                        bsel = b0000                   
+                        regfile_we = 1
+                        regfile_wa = d25                            // temp reg
+                        regfile_ra2 = d10                           // direct read (row4 reg)
+                        game_fsm.d = GameStates.BRANCH_ROW4_0_COLLISION_DOUBLE
+                    }
+                // branch row 4 = 0 or not
+                GameStates.BRANCH_ROW4_0_COLLISION_DOUBLE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.BRANCH_ROW4_0_COLLISION_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.BRANCH_ROW4_0_COLLISION_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.BRANCH_ROW4_0_COLLISION_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        regfile_ra2 = d25                          // temp reg 
+                        if (regfile_rd2[0]){                       // direct read in
+                            game_fsm.d = GameStates.IDLE_DOUBLE
+                        }
+                        else{
+                            game_fsm.d = GameStates.PLAYER_LOSE_DOUBLE
+                        }
+                    }
+                // check special timer if it is currently in power-up state or not to reduce special timer by 1 for every obstacle dodged
+                GameStates.CHECK_SPECIAL_TIMER_REDUCE_DOUBLE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.CHECK_SPECIAL_TIMER_REDUCE_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.CHECK_SPECIAL_TIMER_REDUCE_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.CHECK_SPECIAL_TIMER_REDUCE_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b110011                             // CMPEQ
+                        asel = b0010                                // constant 0
+                        bsel = b0000                                  
+                        regfile_we = 1
+                        regfile_wa = d15                            // temp reg
+                        regfile_ra2 = d3                            // direct read (special timer reg)
+                        game_fsm.d = GameStates.BRANCH_SPECIAL_TIMER_REDUCE_DOUBLE
+                    }
+                // branch special timer
+                GameStates.BRANCH_SPECIAL_TIMER_REDUCE_DOUBLE: 
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.BRANCH_SPECIAL_TIMER_REDUCE_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.BRANCH_SPECIAL_TIMER_REDUCE_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.BRANCH_SPECIAL_TIMER_REDUCE_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        regfile_ra2 = d15                          // temp reg 
+                        if (regfile_rd2[0]){                       // direct read in
+                            game_fsm.d = GameStates.CHECK_ROW4_0_DOUBLE
+                        }
+                        else{
+                            game_fsm.d = GameStates.DECREASE_SPECIAL_TIMER_DOUBLE
+                        }
+                    }
+                // decrease special timer by 1 for every obstacle dodged
+                GameStates.DECREASE_SPECIAL_TIMER_DOUBLE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.DECREASE_SPECIAL_TIMER_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.DECREASE_SPECIAL_TIMER_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.DECREASE_SPECIAL_TIMER_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b000001                             // SUB
+                        asel = b0000 
+                        bsel = b0001                                // constant 1
+                        regfile_we = 1 
+                        regfile_wa = d3                             // special timer reg
+                        regfile_ra1 = d3                            // direct read (special timer reg)
+                        game_fsm.d = GameStates.CHECK_ROW4_0_DOUBLE
+                    }
+                // check if row 4 have obstacle or not for score addition
+                GameStates.CHECK_ROW4_0_DOUBLE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.CHECK_ROW4_0_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.CHECK_ROW4_0_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.CHECK_ROW4_0_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b110011                             // CMPEQ
+                        asel = b0010                                // constant 0
+                        bsel = b0000                                  
+                        regfile_we = 1
+                        regfile_wa = d11                            // temp reg
+                        regfile_ra2 = d10                           // direct read (row 4 reg)
+                        game_fsm.d = GameStates.BRANCH_ROW4_0_DOUBLE
+                    }
+                // branch row 4 obstacle check for score addition
+                GameStates.BRANCH_ROW4_0_DOUBLE:  
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.BRANCH_ROW4_0_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.BRANCH_ROW4_0_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.BRANCH_ROW4_0_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        regfile_ra2 = d11                          // temp reg 
+                        if (regfile_rd2[0]){                       // direct read in
+                            game_fsm.d = GameStates.IDLE_DOUBLE
+                        }
+                        else{
+                            game_fsm.d = GameStates.INCREASE_SCORE_DOUBLE
+                        }
+                    }
+                // increase score by 1 for each obstacle dodged
+                GameStates.INCREASE_SCORE_DOUBLE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.INCREASE_SCORE_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.INCREASE_SCORE_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.INCREASE_SCORE_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b000000                             // ADD
+                        asel = b0000
+                        bsel = b0001                                // constant 1
+                        regfile_we = 1
+                        regfile_wa = d1                             // score reg
+                        regfile_ra1 = d1                            // direct read (score reg)
+                        game_fsm.d = GameStates.DIV_SCORE_DOUBLE
+                    }
+                // allow for power-up to recharge every 8 obstacle dodged through dividing score by 8
+                GameStates.DIV_SCORE_DOUBLE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.DIV_SCORE_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.DIV_SCORE_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.DIV_SCORE_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b000011                             // DIV
+                        asel = b0000
+                        bsel = b0010                                // constant 8
+                        regfile_we = 1
+                        regfile_wa = d17                            // divscore reg
+                        regfile_ra1 = d1                            // direct read (score reg)
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_INDICATION_DOUBLE
+                    }
+                // show availability of power-up by comparing if special counter is less than score / 8 or not
+                GameStates.CHECK_SPECIAL_COUNTER_INDICATION_DOUBLE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.CHECK_SPECIAL_COUNTER_INDICATION_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.CHECK_SPECIAL_COUNTER_INDICATION_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.CHECK_SPECIAL_COUNTER_INDICATION_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b110101                             // CMPLT                                
+                        asel = b0000   
+                        bsel = b0000                           
+                        regfile_we = 1
+                        regfile_wa = d16                            // temp reg
+                        regfile_ra1 = d2                            // direct read (special counter reg)
+                        regfile_ra2 = d17                           // direct read (divscore reg)
+                        game_fsm.d = GameStates.CHECK_SCORE_9999_DOUBLE
+                    }
+                // check if score is 9999 to determine if player wins
+                GameStates.CHECK_SCORE_9999_DOUBLE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.BRANCH_ROW4_0_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.BRANCH_ROW4_0_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.BRANCH_ROW4_0_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        alufn = b110011                             // CMPEQ
+                        asel = b0111                                // constant 9999
+                        bsel = b0000                                  
+                        regfile_we = 1
+                        regfile_wa = d23                            // temp reg
+                        regfile_ra2 = d1                            // direct read (score reg)
+                        game_fsm.d = GameStates.BRANCH_SCORE_9999_DOUBLE
+                    }
+                // branch to either player win or back to idle
+                GameStates.BRANCH_SCORE_9999_DOUBLE:
+                    // only p1 pressed
+                    if(p1_button && ~p2_button && ~p3_button) {
+                        store_statep1.d = GameStates.BRANCH_ROW4_0_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if(~p1_button && p2_button && ~p3_button) {
+                        store_statep2.d = GameStates.BRANCH_ROW4_0_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if(~p1_button && ~p2_button && p3_button) {
+                        store_statep3.d = GameStates.BRANCH_ROW4_0_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else {
+                        regfile_ra2 = d23                          // temp reg 
+                        if (regfile_rd2[0]){                       // direct read in
+                            game_fsm.d = GameStates.PLAYER_WIN_DOUBLE
+                        }
+                        else{
+                            game_fsm.d = GameStates.IDLE_DOUBLE
+                        }
+                    }
+                // light up all player LEDs if player wins
+                GameStates.PLAYER_WIN_DOUBLE:
+                    alufn = b011010                             // A
+                    asel = b0101                                // constant 511                                  
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d18                            // orplayer reg
+                    regfile_ra2 = d18                           // direct read (orplayer reg)
+                    game_fsm.d = GameStates.ROW1_WIN_DOUBLE
+                // off obstacle LEDs if player wins
+                GameStates.ROW1_WIN_DOUBLE:
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0                                  
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d7                             // row 1 reg
+                    regfile_ra2 = d7                            // direct read (row 1 reg)
+                    game_fsm.d = GameStates.ROW2_WIN_DOUBLE
+                // off obstacle LEDs if player wins
+                GameStates.ROW2_WIN_DOUBLE:
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0                                  
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d8                             // row 2 reg
+                    regfile_ra2 = d8                            // direct read (row 2 reg)
+                    game_fsm.d = GameStates.ROW3_WIN_DOUBLE
+                // off obstacle LEDs if player wins
+                GameStates.ROW3_WIN_DOUBLE:
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0                                 
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d9                             // row 3 reg
+                    regfile_ra2 = d9                            // direct read (row 3 reg)
+                    game_fsm.d = GameStates.GAMEOVER_WIN_DOUBLE
+                // Player Win Gameover
+                GameStates.GAMEOVER_WIN_DOUBLE:
+                    game_fsm.d = GameStates.GAMEOVER_WIN_DOUBLE
+                // off all player LEDs if player loses
+                GameStates.PLAYER_LOSE_DOUBLE:
+                    alufn = b011010                             // A
+                    asel = b0010                                // constant 0                                  
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d18                            // orplayer reg
+                    regfile_ra2 = d18                           // direct read (orplayer reg)
+                    game_fsm.d = GameStates.ROW1_LOSE_DOUBLE
+                // light up obstacle LEDs if player loses
+                GameStates.ROW1_LOSE_DOUBLE:
+                    alufn = b011010                             // A
+                    asel = b0101                                // constant 511                                  
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d7                             // row 1 reg
+                    regfile_ra2 = d7                            // direct read (row 1 reg)
+                    game_fsm.d = GameStates.ROW2_LOSE_DOUBLE
+                // light up obstacle LEDs if player loses
+                GameStates.ROW2_LOSE_DOUBLE:
+                    alufn = b011010                             // A
+                    asel = b0101                                // constant 511                                  
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d8                             // row 2 reg
+                    regfile_ra2 = d8                            // direct read (row 2 reg)
+                    game_fsm.d = GameStates.ROW3_LOSE_DOUBLE
+                // light up obstacle LEDs if player loses
+                GameStates.ROW3_LOSE_DOUBLE:
+                    alufn = b011010                             // A
+                    asel = b0101                                // constant 511                                  
+                    bsel = b0000                                 
+                    regfile_we = 1 
+                    regfile_wa = d9                             // row 3 reg
+                    regfile_ra2 = d9                            // direct read (row 3 reg)
+                    game_fsm.d = GameStates.GAMEOVER_LOSE_DOUBLE
+                // Player Lose Gameover
+                GameStates.GAMEOVER_LOSE_DOUBLE:
+                    game_fsm.d = GameStates.GAMEOVER_LOSE_DOUBLE         
+                // IDLE mode to start off various states
+                GameStates.IDLE_DOUBLE:
+                    // 2s delay and buttons p1, p2, p3 not pressed
+                    if (increase_timerx2 && ~p1_button && ~p2_button && ~p3_button){
+                        game_fsm.d = GameStates.STORE_ROW3_ROW4_1_DOUBLE
+                    }
+                    // only p1 pressed
+                    else if (p1_button && ~p2_button && ~p3_button){
+                        store_statep1.d = GameStates.IDLE_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P1_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p2 pressed
+                    else if (~p1_button && p2_button && ~p3_button){
+                        store_statep2.d = GameStates.IDLE_DOUBLE
+                        game_fsm.d = GameStates.CHECK_P2_SHIFT_COUNTER_DOUBLE
+                    }
+                    // only p3 pressed
+                    else if (~p1_button && ~p2_button && p3_button){
+                        store_statep3.d = GameStates.IDLE_DOUBLE
+                        game_fsm.d = GameStates.CHECK_SPECIAL_COUNTER_DOUBLE
+                    }
+                    else{
+                        game_fsm.d = GameStates.IDLE_DOUBLE
+                    }
             }
-        }
-        
+        }  
     }
 }
