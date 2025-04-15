@@ -1,29 +1,30 @@
-## **Score Snatcher**
-This is 50.002 Instructor 1D project idea sample. 
+## **Dodger**
 
-**Number of players:** 2 players
+**Number of players:** 1 or 2 players
 
-**Procedure:** The 7 segment displays increasing number at variable rate. Any player can choose to _collect_ the number displayed on the 7 segment. Upon collection, it **resets** the number back to zero. The player who collected the number obtains a score equivalent to the current number when the player choose to _collect_ it. Each player however, can only choose to collect the number **three times at maximum.** The game runs for 30 seconds, and ends once the timer runs out, or that both players have used up their 3 collection chances.
+**Procedure:** 
+In single-player mode, one player controls both movement buttons, requiring quick reflexes and coordination. (Players can also collaborate by communicating and working together to control the character.) The character must continuously dodge falling objects to stay in the game.
 
-**Winning Condition:** The player with the _most score_ at the end of 30 seconds wins the game. If both players end up with the same score, then the game ends in a _draw_.
+In multiplayer mode, two players each control a character and must work together to survive. Each player is responsible for controlling just one movement button, which only allows movement in one direction, with the left button allowing the left character to always move left (the character will move to rightmost position after moving from the leftmost position), and the right button allowing the right character to always move right (the character will move to leftmost position after moving from the rightmost position), making teamwork crucial. (Alternatively, players can choose to play alone by controlling both characters.) Obstacles will either spawn with one gap or two gaps, and both characters must pass through all available gaps (if two gaps spawn, the characters must each cover one gap; if one gap spawn, both characters must overlap at the gap). Both characters will still need to dodge all obstacles.
+
+**Winning Condition:** The game is intended to be attaining highest score till collision with obstacle (lose), but a win condition is currently set at 9999 score where all player LEDs will light up.
+
+**Losing Condition:** The game ends when the player collides with the obstacle (both single-player and multiplayer modes) or when both players fail to spread out to all possible dodge positions (only in multiplayer mode)
 
 ### Controls
 
-- Player 1: `io_button[4]` to collect the currently displayed number
-- Player 2: `io_button[3]` to collect the currently displayed number
+- Left `io_button[3]` to shift the player left (single-player mode) or shift the left player left (multiplayer mode)
+- Right `io_button[2]` to shift the player right (single-player mode) or shift the right player right (multiplayer mode)
+- Special Button `io_dip[0][0]` (due to faulty io_button pinout) to provide special power mode lasting for 3 obstacles where obstacles are slowed down after achieving every multiple of 8 score
+- Mode Change Button `io_dip[0][1]` (due to faulty io_button pinout) to allow for mode change to double player mode at any point of single player mode
 
 ### Display
 
-- Player 1 Score: `io_led[0]`
-- Player 2 Score: `io_led[1]`
-- Player 1 button presses: led[7:6]
-- Player 2 button presses: led[5:4]
-- Game timer: io_led[2] 
-- If Player 1 wins, all leds in `io_led[0]` will be illuminated. Similarly with Player 2.
-- If both players draw, half of leds in io_led[0] and iio_led[1] will be illuminated.
-
-## Important Notice
-
-This repository is meant to serve as a sample repository for 50.002 1D project. Its ALU is implemented using Lucid/Verilog math and comparison operators. The game is FSM-based and is sufficient to gain perfect score given that the hardware connections are done properly and the enclosure of the prototype is acceptable.
-
-For 50.002 1D project, you are **not** allowed to do this, and should implement your ALU following Lab 3 closely using combinational logic units.
+- Score: `io_select[4] and io_segment[8]`
+- Row 1 Obstacle: `io_led[0][0], io_led[0][2], io_led[0][4], io_led[0][6], io_led[1][0], io_led[1][2], io_led[1][4]`
+- Row 2 Obstacles: `io_led[0][1], io_led[0][3], io_led[0][5], io_led[0][7], io_led[1][1], io_led[1][3], io_led[1][5]`
+- Row 3 Obstacles: led[7:1]
+- Player/Players: `io_led[1][6], io_led[2][0], io_led[2][2], io_led[2][4], io_led[2][6], io_led[1][7], io_led[2][1], io_led[2][3],io_led[2][5]`
+- Special Mode Indicator: led[0]
+- If Player/Players wins, all Player/Players leds will be illuminated
+- If Player/Players lose, all Obstacles leds will be illuminated
